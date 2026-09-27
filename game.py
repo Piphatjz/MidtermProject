@@ -1,20 +1,23 @@
 # -*- coding: utf-8 -*-
 """
 game.py
-สถานะเกมและลอจิกหลัก (state machine): MENU, PLAYING, PAUSED, SHOP, GAME_OVER, VICTORY
-ผูกระบบ Particle, เสียงเอฟเฟกต์, การควบคุม และการเปลี่ยนฉากเข้าด้วยกัน
+สถานะเกมและลอจิกหลัก (state machine):
+MENU, CONTRACT, PLAYING, PAUSED, SHOP, GAME_OVER, VICTORY
+ผูกระบบ Particle, เสียงเอฟเฟกต์, ภารกิจผสมประจำตา, การควบคุม และการเปลี่ยนฉากเข้าด้วยกัน
 """
 import sys
 import pygame
 import settings as S
 import ui
 import assets
+import missions
 from world import World
 from vehicle import Vehicle
 from particles import ParticleSystem
 import save_manager as SM
 
 MENU = "menu"
+CONTRACT = "contract"
 PLAYING = "playing"
 PAUSED = "paused"
 SHOP = "shop"
@@ -28,6 +31,8 @@ class Game:
         self.state = MENU
         self.world = None
         self.vehicle = None
+        self.mission = None
+        self.contract_options = []
         self.particles = ParticleSystem()
         self.camera_y = 0.0
         self.toast_msg = ""
@@ -36,17 +41,25 @@ class Game:
         self.buttons = {}
         self.end_title = ""
         self.end_sub = ""
+        self.is_fullscreen = False
+        # สำหรับแปลง mouse coordinates เมื่ออยู่ในโหมด fullscreen scaled
+        self.display_scale = 1.0
+        self.display_offset = (0, 0)
         assets.init()
 
     # ------------------------------------------------------------------
-    def new_game(self):
+    def new_game(self, mission=None):
         self.world = World()
         self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
+        self.vehicle.on_resource_collected = self._on_resource_collected
+        self.vehicle.on_dive_performed = self._on_dive_performed
         self.particles.clear()
         self.camera_y = 0.0
         self.was_in_home = True
+
+        self.mission = mission if mission is not None else missions.get_random_mission()
         self.state = PLAYING
-        self._toast("เริ่มเกมใหม่! บังคับด้วย WASD/ลูกศร หรือคลิกเมาส์ค้างไว้")
+        self._toast(f"เริ่มภารกิจ: {self.mission.title} ({self.mission.diff_info['name']})")
 
     def load_game(self):
         try:
@@ -54,23 +67,60 @@ class Game:
             self.world = World.from_dict(data["world"])
             self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
             self.vehicle.load_dict(data["vehicle"])
+            self.vehicle.on_resource_collected = self._on_resource_collected
+            self.vehicle.on_dive_performed = self._on_dive_performed
             self.particles.clear()
             self.camera_y = max(0.0, self.vehicle.y - S.SCREEN_H / 2)
             self.was_in_home = False
+
+            extra = data.get("extra", {})
+            if "mission" in extra and extra["mission"]:
+                self.mission = missions.Mission.from_dict(extra["mission"])
+            else:
+                self.mission = missions.get_random_mission()
+
             self.state = PLAYING
-            self._toast("โหลดเกมสำเร็จ")
+            self._toast(f"โหลดเกมสำเร็จ: {self.mission.title}")
         except Exception as e:
             print(f"[Game] Load error: {e}, starting new game.")
             self.new_game()
 
     def save_and_quit(self):
-        SM.save_game(self.world, self.vehicle)
+        extra = {
+            "mission": self.mission.to_dict() if self.mission else None
+        }
+        SM.save_game(self.world, self.vehicle, extra=extra)
         self.state = MENU
         self._toast("บันทึกเกมแล้ว")
 
-    def _toast(self, msg, dur=2.2):
+    def _toast(self, msg, dur=2.5):
         self.toast_msg = msg
         self.toast_timer = dur
+
+    def _on_resource_collected(self, res):
+        if self.mission:
+            self.mission.add_mined_resource(res)
+            for key, label, is_met, cur, tgt, prog_txt in self.mission.get_goals_status():
+                if is_met and cur == tgt:
+                    self._toast(f"🎯 สำเร็จเงื่อนไข: {label}!")
+                    break
+
+    def _on_dive_performed(self):
+        if self.mission:
+            self.mission.add_dive()
+            for key, label, is_met, cur, tgt, prog_txt in self.mission.get_goals_status():
+                if key == "dives" and is_met and cur == tgt:
+                    self._toast(f"🎯 สำเร็จเงื่อนไข: {label}!")
+
+    # ------------------------------------------------------------------
+    def _to_game_pos(self, screen_pos):
+        """แปลงพิกัด mouse จากหน้าจอจริง → game surface space (รองรับ fullscreen scaling)"""
+        sx, sy = screen_pos
+        ox, oy = self.display_offset
+        scale = self.display_scale
+        if scale == 0:
+            return screen_pos
+        return ((sx - ox) / scale, (sy - oy) / scale)
 
     # ------------------------------------------------------------------
     def home_zone(self):
@@ -93,19 +143,42 @@ class Game:
 
     # ------------------------------------------------------------------
     def handle_event(self, event):
-        mouse_pos = pygame.mouse.get_pos()
+        raw_pos = getattr(event, "pos", pygame.mouse.get_pos())
+        mouse_pos = self._to_game_pos(raw_pos)
 
         if self.state == MENU:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):
                         if key == "new":
-                            self.new_game()
+                            self.contract_options = missions.get_three_contract_options()
+                            self.state = CONTRACT
                         elif key == "continue":
                             self.load_game()
                         elif key == "quit":
                             pygame.quit()
                             sys.exit()
+            return
+
+        if self.state == CONTRACT:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.state = MENU
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "select_0":
+                            self.new_game(self.contract_options[0])
+                        elif key == "select_1":
+                            self.new_game(self.contract_options[1])
+                        elif key == "select_2":
+                            self.new_game(self.contract_options[2])
+                        elif key == "random":
+                            self.new_game(missions.get_random_mission())
+                        elif key == "reroll":
+                            self.contract_options = missions.get_three_contract_options()
+                        elif key == "back":
+                            self.state = MENU
             return
 
         if event.type == pygame.KEYDOWN:
@@ -128,6 +201,11 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "resume":
                             self.state = PLAYING
+                        elif key == "fullscreen":
+                            pygame.event.post(pygame.event.Event(
+                                pygame.KEYDOWN,
+                                key=pygame.K_F11, mod=0, unicode=""
+                            ))
                         elif key == "save_quit":
                             self.save_and_quit()
                         elif key == "quit_nosave":
@@ -166,22 +244,26 @@ class Game:
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:
             dy += 1
 
-        # ควบคุมด้วยเมาส์ (ถ้าไม่ได้กดปุ่มคีย์บอร์ดอยู่)
-        if dx == 0 and dy == 0 and pygame.mouse.get_pressed()[0]:
-            mx, my = pygame.mouse.get_pos()
-            # พิกัดรถขุดบนหน้าจอ
-            v_screen_x = self.vehicle.x
-            v_screen_y = self.vehicle.y - self.camera_y + S.HUD_H
+        if (dx, dy) != (0, 0):
+            return (dx, dy)
 
-            diff_x = mx - v_screen_x
-            diff_y = my - v_screen_y
+        # ควบคุมด้วยเมาส์ (คลิกค้างเพื่อเดินตาม)
+        if pygame.mouse.get_pressed()[0]:
+            mx, my = self._to_game_pos(pygame.mouse.get_pos())
+            # หักลบส่วนหัว HUD ออกก่อนคำนวณตำแหน่งในโลก
+            world_mouse_y = my - S.HUD_H + self.camera_y
+            diff_x = mx - self.vehicle.x
+            diff_y = world_mouse_y - self.vehicle.y
 
-            # Deadzone ป้องกันการกระตุกเมื่อเมาส์อยู่ใกล้ตัวรถมากเกินไป
             if abs(diff_x) > 14 or abs(diff_y) > 14:
                 dx = diff_x
                 dy = diff_y
 
         return (dx, dy)
+
+    def _shift_pressed(self):
+        keys = pygame.key.get_pressed()
+        return keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
 
     # ------------------------------------------------------------------
     def update(self, dt):
@@ -192,15 +274,20 @@ class Game:
             return
 
         direction = self._input_direction()
-        self.vehicle.update(dt, self.world, direction, self.particles)
+        self.vehicle.update(dt, self.world, direction, self.particles, shift_pressed=self._shift_pressed())
         self.particles.update(dt)
+
+        # คำนวณความลึกและอัปเดตภารกิจ
+        depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+        if self.mission:
+            self.mission.update_from_game(self.vehicle, depth)
 
         # การเลื่อนกล้องตามรถขุดในแนวตั้งอย่างนุ่มนวล
         target_cam = max(0.0, self.vehicle.y - S.SCREEN_H / 2.0)
         self.camera_y += (target_cam - self.camera_y) * min(1.0, dt * 7.0)
-        self.camera_y = max(0.0, min(self.camera_y, S.WORLD_PIXEL_H - S.SCREEN_H))
+        self.camera_y = max(0.0, self.camera_y)
 
-        # ตรวจสอบการกลับมาที่บ้าน (ขายของ + เติมพลังงาน)
+        # ตรวจสอบการกลับมาที่บ้าน (ขายของ + เติมพลังงาน + ตรวจเงื่อนไขชนะ)
         in_home = self.vehicle.rect.colliderect(self.home_zone())
         if in_home and not self.was_in_home:
             earned = self.vehicle.sell_cargo()
@@ -215,10 +302,17 @@ class Game:
             else:
                 self._toast("เติมพลังงานเต็มแล้ว")
 
-            if S.END_ON_TARGET_RESOURCE and self.vehicle.coins >= S.VICTORY_COIN_TARGET:
+            # ตรวจสอบเงื่อนไขชนะจากภารกิจผสม
+            if self.mission and self.mission.is_completed():
+                self.end_title = "ภารกิจสำเร็จสมบูรณ์!"
+                self.end_sub = f"คุณพิชิตภารกิจ [{self.mission.title}] ระดับ{self.mission.diff_info['name']} สำเร็จครบทุกข้อ!"
+                self.state = VICTORY
+                assets.play_sound("upgrade", volume=0.95)
+            elif S.END_ON_TARGET_RESOURCE and self.vehicle.coins >= S.VICTORY_COIN_TARGET:
                 self.end_title = "ขุดเจอสมบัติมหาศาล!"
                 self.end_sub = f"คุณสะสมเหรียญครบ {S.VICTORY_COIN_TARGET} เหรียญแล้ว!"
                 self.state = VICTORY
+
         self.was_in_home = in_home
 
         # ตรวจสอบพลังงานหมด
@@ -229,9 +323,16 @@ class Game:
 
     # ------------------------------------------------------------------
     def draw(self):
-        mouse_pos = pygame.mouse.get_pos()
+        mouse_pos = self._to_game_pos(pygame.mouse.get_pos())
+
         if self.state == MENU:
             self.buttons = ui.draw_main_menu(self.screen, SM.save_exists(), mouse_pos)
+            return
+
+        if self.state == CONTRACT:
+            # วาดฉากหลังเมนูแล้วเปิดหน้าต่างเลือกสัญญาภารกิจ
+            ui.draw_main_menu(self.screen, False, mouse_pos)
+            self.buttons = ui.draw_contract_menu(self.screen, self.contract_options, mouse_pos)
             return
 
         # วาดฉากเกม
@@ -247,9 +348,9 @@ class Game:
         if self.state == PLAYING and pygame.mouse.get_pressed()[0]:
             ui.draw_aim_indicator(self.screen, self.vehicle, mouse_pos, self.camera_y)
 
-        # วาด HUD ด้านบน
+        # วาด HUD ด้านบน (รวมแถบภารกิจผสม)
         depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
-        ui.draw_hud(self.screen, self.vehicle, depth)
+        ui.draw_hud(self.screen, self.vehicle, depth, self.mission)
 
         # แสดงข้อความคำใบ้ (Hint)
         blocked_by_rock = (
@@ -271,14 +372,14 @@ class Game:
 
         # วาดเมนูตาม State
         if self.state == PAUSED:
-            self.buttons = ui.draw_pause_menu(self.screen, mouse_pos)
+            self.buttons = ui.draw_pause_menu(self.screen, mouse_pos, is_fullscreen=self.is_fullscreen)
         elif self.state == SHOP:
             self.buttons = ui.draw_shop_menu(self.screen, self.vehicle, mouse_pos)
         elif self.state == GAME_OVER:
             self.buttons = ui.draw_end_screen(self.screen, self.end_title, self.end_sub, self.vehicle,
-                                               mouse_pos, color=(255, 100, 90))
+                                               mouse_pos, mission=self.mission, color=(255, 100, 90))
         elif self.state == VICTORY:
             self.buttons = ui.draw_end_screen(self.screen, self.end_title, self.end_sub, self.vehicle,
-                                               mouse_pos, color=(255, 220, 100))
+                                               mouse_pos, mission=self.mission, color=(255, 220, 100))
         else:
             self.buttons = {}

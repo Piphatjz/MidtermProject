@@ -1,29 +1,32 @@
 # -*- coding: utf-8 -*-
 """
 ui.py
-การแสดงผลทุกอย่างในเกม:
-- เรนเดอร์แผนที่ด้วย Textures & Sprites จริง (หญ้า, ดิน, หิน, อุโมงค์, รอยแตก)
-- เรนเดอร์รถขุดพร้อมหัวสว่านหมุน แสงไฟหน้ารถ และเอฟเฟกต์การสั่น
-- อาคารบ้านและร้านค้าแบบ Pixel Art
-- อนุภาค (Particles) และตัวเลขลอย (Floating Text)
-- HUD แสดงพลังงาน ความจุ และเหรียญอย่างสวยงาม
-- เมนูต่าง ๆ (หลัก, หยุดเกม, ร้านค้า, จบเกม)
+การแสดงผลกราฟิกและ UI ทั้งหมดของเกม:
+- HUD 3 โซน (ซ้าย: ทรัพยากรในถัง | กลาง: เหรียญ/ความลึก/หลอดสถานะ | ขวา: ภารกิจประจำตา Quest Tracker)
+- หน้าต่างเลือกสัญญาภารกิจประจำตา (Contract Selection Modal: ง่าย / ปานกลาง / ยาก)
+- ร้านค้าอัปเกรด (Shop)
+- เมนูหยุดชั่วคราว (Pause Menu)
+- หน้าจอชนะ / จบเกม (Victory & Game Over Screen)
+- เมนูหลัก (Main Menu)
+- ระบบ Hint, Toast, และ Aim Indicator
 """
 import math
 import random
 import pygame
 import settings as S
 import assets
+import missions
 
 pygame.font.init()
-FONT_S = None
-FONT_M = None
-FONT_L = None
+FONT_XS = None
+FONT_S  = None
+FONT_M  = None
+FONT_L  = None
 FONT_XL = None
 
 
 def init_fonts():
-    global FONT_S, FONT_M, FONT_L, FONT_XL
+    global FONT_XS, FONT_S, FONT_M, FONT_L, FONT_XL
     thai_font_path = pygame.font.match_font(
         "tahoma,leelawadee,garuda,loma,tlwgtypo,arialunicodems"
     )
@@ -39,34 +42,77 @@ def init_fonts():
             candidates.extend(glob.glob(pattern, recursive=True))
         thai_font_path = candidates[0] if candidates else None
 
-    FONT_S = pygame.font.Font(thai_font_path, 16)
-    FONT_M = pygame.font.Font(thai_font_path, 20)
-    FONT_L = pygame.font.Font(thai_font_path, 28)
-    FONT_XL = pygame.font.Font(thai_font_path, 42)
+    FONT_XS = pygame.font.Font(thai_font_path, 12)
+    FONT_S  = pygame.font.Font(thai_font_path, 14)
+    FONT_M  = pygame.font.Font(thai_font_path, 17)
+    FONT_L  = pygame.font.Font(thai_font_path, 24)
+    FONT_XL = pygame.font.Font(thai_font_path, 38)
 
 
-def text(surface, s, font, color, pos, center=False, shadow=True):
-    if shadow:
-        sh = font.render(s, True, (15, 15, 20))
-        surface.blit(
-            sh,
-            (pos[0] + 1, pos[1] + 1) if not center else sh.get_rect(center=(pos[0] + 1, pos[1] + 1))
-        )
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers สำหรับวาด UI
+# ─────────────────────────────────────────────────────────────────────────────
+
+def text(surface, s, font, color, pos, center=False, right=False, shadow=True, max_w=None):
+    """วาดข้อความ จัด alignment ซ้าย/กลาง/ขวา และตัดทอน ... อัตโนมัติหากเกิน max_w"""
+    s = str(s)
+    if max_w and font.size(s)[0] > max_w:
+        while len(s) > 1 and font.size(s + "…")[0] > max_w:
+            s = s[:-1]
+        s = s + "…"
+
     surf = font.render(s, True, color)
-    rect = surf.get_rect(center=pos) if center else surf.get_rect(topleft=pos)
+    if center:
+        rect = surf.get_rect(center=pos)
+    elif right:
+        rect = surf.get_rect(topright=pos)
+    else:
+        rect = surf.get_rect(topleft=pos)
+
+    if shadow:
+        sh = font.render(s, True, (10, 10, 14))
+        surface.blit(sh, rect.move(1, 1))
+
     surface.blit(surf, rect)
     return rect
 
 
-# ----------------------------------------------------------------------
-# ท้องฟ้าและฉากหลัง
-# ----------------------------------------------------------------------
+def _draw_bar(surface, x, y, w, h, ratio, fg, bg=(45, 40, 50), radius=6, border=(60, 65, 80)):
+    """แถบแสดงสถานะขอบมน พร้อมขอบเนียนตา"""
+    pygame.draw.rect(surface, bg, (x, y, w, h), border_radius=radius)
+    ratio_clamped = max(0.0, min(1.0, float(ratio)))
+    filled = int(w * ratio_clamped)
+    if filled > 0:
+        pygame.draw.rect(surface, fg, (x, y, filled, h), border_radius=radius)
+    pygame.draw.rect(surface, border, (x, y, w, h), 1, border_radius=radius)
+
+
+def _panel(surface, rect, bg=(28, 30, 42), border=(55, 60, 80), alpha=245, radius=12):
+    """พาเนลพื้นหลังสี่เหลี่ยมโค้งพร้อมความโปร่งแสง"""
+    p = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    bg_a = (*bg, alpha)
+    pygame.draw.rect(p, bg_a, (0, 0, rect.w, rect.h), border_radius=radius)
+    pygame.draw.rect(p, (*border, 255), (0, 0, rect.w, rect.h), 1, border_radius=radius)
+    surface.blit(p, rect.topleft)
+
+
+def dim_overlay(surface, alpha=160):
+    """ชั้นมืดคลุมฉากหลังเมื่อเปิดเมนูหรือป๊อปอัป"""
+    overlay = pygame.Surface((S.SCREEN_W, S.SCREEN_H), pygame.SRCALPHA)
+    overlay.fill((8, 10, 16, alpha))
+    surface.blit(overlay, (0, 0))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ท้องฟ้า / เมฆ
+# ─────────────────────────────────────────────────────────────────────────────
+
 def draw_sky_and_bg(surface, camera_y):
     surface.fill(S.COLOR_SKY_BOTTOM)
     sky_h = S.SURFACE_ROW * S.TILE - camera_y + S.HUD_H
     if sky_h > 0:
-        pygame.draw.rect(surface, S.COLOR_SKY_TOP, (0, S.HUD_H, S.SCREEN_W, min(sky_h, S.SCREEN_H)))
-        # ก้อนเมฆ
+        pygame.draw.rect(surface, S.COLOR_SKY_TOP,
+                         (0, S.HUD_H, S.SCREEN_W, min(sky_h, S.SCREEN_H)))
         for i, cx in enumerate([90, 280, 480, 640]):
             cy = 40 + (i * 19) % 35
             _cloud(surface, cx, cy + S.HUD_H - camera_y * 0.25)
@@ -75,26 +121,27 @@ def draw_sky_and_bg(surface, camera_y):
 def _cloud(surface, x, y):
     if y < S.HUD_H - 40 or y > 240:
         return
-    c = (255, 255, 255, 230)
-    pygame.draw.circle(surface, c, (int(x), int(y)), 18)
-    pygame.draw.circle(surface, c, (int(x) + 18, int(y) + 3), 14)
-    pygame.draw.circle(surface, c, (int(x) - 16, int(y) + 4), 13)
+    c = (255, 255, 255, 220)
+    pygame.draw.ellipse(surface, c, (int(x) - 30, int(y) - 12, 60, 22))
+    pygame.draw.ellipse(surface, c, (int(x) - 14, int(y) - 22, 38, 22))
+    pygame.draw.ellipse(surface, c, (int(x) + 6, int(y) - 16, 32, 20))
 
 
-# ----------------------------------------------------------------------
-# แผนที่โลกใต้ดิน (ใช้ Texture PNG + รอยแตกเมื่อถูกเจาะ)
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# โลกใต้ดิน
+# ─────────────────────────────────────────────────────────────────────────────
+
 def draw_world(surface, world, camera_y):
     first_row = max(0, int(camera_y // S.TILE) - 1)
-    last_row = min(world.rows, first_row + (S.SCREEN_H // S.TILE) + 3)
+    last_row  = min(world.rows, first_row + (S.SCREEN_H // S.TILE) + 3)
 
-    img_dirt = assets.get_image("dirt")
-    img_grass = assets.get_image("grass")
-    img_rock = assets.get_image("rock")
+    img_dirt   = assets.get_image("dirt")
+    img_grass  = assets.get_image("grass")
+    img_rock   = assets.get_image("rock")
     img_tunnel = assets.get_image("tunnel")
-    crack_1 = assets.get_image("crack_1")
-    crack_2 = assets.get_image("crack_2")
-    crack_3 = assets.get_image("crack_3")
+    crack_1    = assets.get_image("crack_1")
+    crack_2    = assets.get_image("crack_2")
+    crack_3    = assets.get_image("crack_3")
 
     for row in range(first_row, last_row):
         screen_y = row * S.TILE - camera_y + S.HUD_H
@@ -104,21 +151,17 @@ def draw_world(surface, world, camera_y):
 
             if tile == S.T_SKY:
                 continue
-
             elif tile == S.T_GRASS:
                 surface.blit(img_grass, (screen_x, screen_y))
                 _draw_cracks(surface, world, col, row, screen_x, screen_y, crack_1, crack_2, crack_3)
-
             elif tile == S.T_DIRT:
                 surface.blit(img_dirt, (screen_x, screen_y))
                 _draw_resource_sprite(surface, world.resource[row][col], screen_x, screen_y)
                 _draw_cracks(surface, world, col, row, screen_x, screen_y, crack_1, crack_2, crack_3)
-
             elif tile == S.T_ROCK:
                 surface.blit(img_rock, (screen_x, screen_y))
                 _draw_resource_sprite(surface, world.resource[row][col], screen_x, screen_y)
                 _draw_cracks(surface, world, col, row, screen_x, screen_y, crack_1, crack_2, crack_3)
-
             elif tile == S.T_EMPTY:
                 surface.blit(img_tunnel, (screen_x, screen_y))
 
@@ -136,211 +179,243 @@ def _draw_cracks(surface, world, col, row, sx, sy, c1, c2, c3):
 def _draw_resource_sprite(surface, res, sx, sy):
     if res == S.RES_NONE:
         return
-    if res == S.RES_COIN:
-        img = assets.get_image("res_coin")
-    elif res == S.RES_GOLD:
-        img = assets.get_image("res_gold")
-    elif res == S.RES_DIAMOND:
-        img = assets.get_image("res_diamond")
-    elif res == S.RES_FUEL:
-        img = assets.get_image("res_fuel")
-    else:
-        return
-    surface.blit(img, (sx, sy))
+    key = {
+        S.RES_COIN: "res_coin",
+        S.RES_GOLD: "res_gold",
+        S.RES_DIAMOND: "res_diamond",
+        S.RES_FUEL: "res_fuel",
+    }.get(res)
+    if key:
+        surface.blit(assets.get_image(key), (sx, sy))
 
 
-# ----------------------------------------------------------------------
-# อาคารบ้าน (Depot) และร้านค้า (Shop)
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# อาคาร (บ้าน / ร้านค้า)
+# ─────────────────────────────────────────────────────────────────────────────
+
 def draw_home_and_shop(surface, camera_y):
     base_y = S.SURFACE_ROW * S.TILE - camera_y + S.HUD_H - S.TILE * 2
-
-    # บ้าน / คลังสินค้า (2x2 tiles)
-    hx = S.HOME_COL * S.TILE
-    home_img = assets.get_image("building_home")
-    surface.blit(home_img, (hx, base_y))
-
-    # ร้านค้าอัพเกรด (1x2 tiles)
-    sx = S.SHOP_COL * S.TILE
-    shop_img = assets.get_image("building_shop")
-    surface.blit(shop_img, (sx, base_y))
+    surface.blit(assets.get_image("building_home"), (S.HOME_COL * S.TILE, base_y))
+    surface.blit(assets.get_image("building_shop"), (S.SHOP_COL * S.TILE, base_y))
 
 
-# ----------------------------------------------------------------------
-# รถขุด (Vehicle)
-# ----------------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# รถขุด
+# ─────────────────────────────────────────────────────────────────────────────
+
 def draw_vehicle(surface, vehicle, camera_y):
     vx = vehicle.x + vehicle.vibe_x
     vy = vehicle.y + vehicle.vibe_y - camera_y + S.HUD_H
+    rect = pygame.Rect(0, 0, int(vehicle.w), int(vehicle.h))
+    rect.center = (int(vx), int(vy))
 
-    # ลำแสงไฟหน้ารถ ส่องไปในทิศที่หันหน้า
+    body_raw = assets.get_image("vehicle_body")
+    body = pygame.transform.smoothscale(body_raw, (rect.w, rect.h))
+    if vehicle.facing[0] < 0:
+        body = pygame.transform.flip(body, True, False)
+    surface.blit(body, rect.topleft)
+
     fx, fy = vehicle.facing
-    _draw_headlight(surface, vx, vy, fx, fy)
+    drill_name = "drill_down"
+    drill_pos = (rect.centerx, rect.bottom + 2)
 
-    # ตัวถังรถ — scale ตามขนาดจริงของรถ (เพิ่มขึ้นตามระดับอัพเกรด)
-    body_img = pygame.transform.smoothscale(
-        assets.get_image("vehicle_body"), (vehicle.w, vehicle.h)
-    )
-    rect = body_img.get_rect(center=(int(vx), int(vy)))
-    surface.blit(body_img, rect)
+    if fx > 0:
+        drill_name, drill_pos = "drill_right", (rect.right + 2, rect.centery)
+    elif fx < 0:
+        drill_name, drill_pos = "drill_left",  (rect.left - 2, rect.centery)
+    elif fy < 0:
+        drill_name, drill_pos = "drill_up",    (rect.centerx, rect.top - 2)
+    elif fy > 0:
+        drill_name, drill_pos = "drill_down",  (rect.centerx, rect.bottom + 2)
 
-    # ขนาดหัวสว่าน = ~60% ของขนาดรถ
-    drill_size = max(20, int(vehicle.w * 0.60))
+    d_base = assets.get_image(drill_name)
+    drill_scale_w = max(18, int(vehicle.w * 0.44))
+    drill_scale_h = max(18, int(vehicle.h * 0.44))
+    d_scaled = pygame.transform.smoothscale(d_base, (drill_scale_w, drill_scale_h))
 
-    # หัวสว่านตามทิศทาง
-    if fx == 1:
-        drill_name = "drill_right"
-        drill_pos = (rect.right + 2, rect.centery)
-    elif fx == -1:
-        drill_name = "drill_left"
-        drill_pos = (rect.left - 2, rect.centery)
-    elif fy == -1:
-        drill_name = "drill_up"
-        drill_pos = (rect.centerx, rect.top - 2)
-    else:
-        drill_name = "drill_down"
-        drill_pos = (rect.centerx, rect.bottom + 2)
-
-    drill_img = pygame.transform.smoothscale(
-        assets.get_image(drill_name), (drill_size, drill_size)
-    )
-
-    # อนิเมชันการหมุนสว่าน
-    if vehicle.is_drilling or vehicle.is_moving:
-        # สั่นขยับหัวสว่านเข้าออกเล็กน้อย
-        offset = math.sin(vehicle.drill_anim * 2.0) * 2.0
-        d_center = (
-            int(drill_pos[0] + fx * offset),
-            int(drill_pos[1] + fy * offset)
-        )
-    else:
-        d_center = drill_pos
-
-    d_rect = drill_img.get_rect(center=d_center)
-    surface.blit(drill_img, d_rect)
-
-    # ถ้ากำลังเจาะ มีประกายแสงสีขาวที่ปลายสว่าน
     if vehicle.is_drilling:
-        spark_offset = drill_size // 2 + 4
-        tip = (d_center[0] + fx * spark_offset, d_center[1] + fy * spark_offset)
-        pygame.draw.circle(surface, (255, 255, 230), tip, 5)
-        pygame.draw.circle(surface, (255, 200, 50), tip, 8, 1)
+        angle = math.sin(vehicle.drill_anim) * 16.0
+        d_surf = pygame.transform.rotate(d_scaled, angle)
+    else:
+        d_surf = d_scaled
 
-    # เอฟเฟกต์สะสมพลังงานศักย์โน้มถ่วง (Gravitational Potential Energy Ep = mgh)
-    grav_ch = getattr(vehicle, "grav_charge", 0.0)
-    if grav_ch > 0:
-        ratio = grav_ch / S.GRAV_CHARGE_MAX
-        aura_rad = int(22 + 6 * ratio)
-        glow_alpha = int(60 + 90 * ratio)
-        glow_surf = pygame.Surface((aura_rad * 2 + 4, aura_rad * 2 + 4), pygame.SRCALPHA)
-        pygame.draw.circle(glow_surf, (100, 220, 255, glow_alpha), (aura_rad + 2, aura_rad + 2), aura_rad, 2)
-        surface.blit(glow_surf, (int(vx - aura_rad - 2), int(vy - aura_rad - 2)))
+    d_rect = d_surf.get_rect(center=drill_pos)
+    surface.blit(d_surf, d_rect.topleft)
 
-        # หลอดแสดงพลังงานศักย์โน้มถ่วงแนวตั้งข้างตัวรถ (แสดงระดับความสูง/ศักย์ Ep)
-        bar_h = 28
-        bar_w = 4
+    if getattr(vehicle, "grav_charge", 0.0) > 0.05:
+        charge_ratio = vehicle.grav_charge / S.GRAV_CHARGE_MAX
+        aura_rad = int(vehicle.w * 0.70 + charge_ratio * 10)
+        gs = pygame.Surface((aura_rad * 2 + 4, aura_rad * 2 + 4), pygame.SRCALPHA)
+        color_aura = (70, 190, 255, int(50 + 90 * charge_ratio))
+        pygame.draw.circle(gs, color_aura, (aura_rad + 2, aura_rad + 2), aura_rad, 2)
+        surface.blit(gs, (int(vx - aura_rad - 2), int(vy - aura_rad - 2)))
+
+    if getattr(vehicle, "grav_charge", 0.0) > 0.02:
+        bar_w = 6
+        bar_h = int(vehicle.h * 0.9)
         bx_bar = int(rect.right + 6)
         by_bar = int(rect.centery - bar_h / 2)
-        fill_h = max(2, int(bar_h * ratio))
-        pygame.draw.rect(surface, (20, 25, 35), (bx_bar, by_bar, bar_w, bar_h), border_radius=2)
-        pygame.draw.rect(surface, (100, 230, 255), (bx_bar, by_bar + (bar_h - fill_h), bar_w, fill_h), border_radius=2)
-        pygame.draw.rect(surface, (180, 245, 255), (bx_bar, by_bar, bar_w, bar_h), 1, border_radius=2)
+        pygame.draw.rect(surface, (20, 30, 45), (bx_bar, by_bar, bar_w, bar_h), border_radius=3)
+        ch_h = int(bar_h * min(1.0, vehicle.grav_charge / S.GRAV_CHARGE_MAX))
+        if ch_h > 0:
+            c_top = by_bar + bar_h - ch_h
+            dive_color = (255, 180, 40) if vehicle.is_diving else (60, 210, 255)
+            pygame.draw.rect(surface, dive_color, (bx_bar, c_top, bar_w, ch_h), border_radius=3)
+        pygame.draw.rect(surface, (80, 140, 200), (bx_bar, by_bar, bar_w, bar_h), 1, border_radius=3)
 
-    # เอฟเฟกต์พุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วง (Gravitational Dive)
-    if getattr(vehicle, "is_diving", False):
-        for dist in (14, 24, 34):
-            tail_x = vx + (random.random() * 8 - 4)
-            tail_y = vy - dist + (random.random() * 4 - 2)
-            pygame.draw.line(surface, (255, 220, 100), (int(tail_x), int(tail_y)), (int(tail_x), int(tail_y - 8)), 2)
-
-    # สัญลักษณ์เตือนพลังงานหมด
     if vehicle.stalled:
-        text(surface, "⚠ พลังงานหมด!", FONT_M, (255, 60, 60), (rect.centerx, rect.top - 18), center=True)
+        text(surface, "พลังงานหมด!", FONT_S, (255, 80, 80),
+             (rect.centerx, rect.top - 20), center=True)
 
 
-def _draw_headlight(surface, vx, vy, fx, fy):
-    """วาดโคนแสงไฟหน้ารถ ส่องเข้าไปในความมืด"""
-    beam_len = 80
-    beam_w = 42
-    light_surf = pygame.Surface((S.SCREEN_W, S.SCREEN_H), pygame.SRCALPHA)
+# ─────────────────────────────────────────────────────────────────────────────
+# HUD  (3 โซน: ซ้าย ทรัพยากร | กลาง เงิน/สถานะ | ขวา ภารกิจผสม)
+# ─────────────────────────────────────────────────────────────────────────────
+# SCREEN_W = 720, HUD_H = 90
+_Z_LEFT_W   = 195
+_Z_CENTER_W = 250
+_Z_RIGHT_W  = S.SCREEN_W - _Z_LEFT_W - _Z_CENTER_W  # 275
 
-    start = (vx + fx * 15, vy + fy * 15)
-    if fx != 0:
-        p1 = (start[0] + fx * beam_len, start[1] - beam_w / 2)
-        p2 = (start[0] + fx * beam_len, start[1] + beam_w / 2)
-    else:
-        p1 = (start[0] - beam_w / 2, start[1] + fy * beam_len)
-        p2 = (start[0] + beam_w / 2, start[1] + fy * beam_len)
+def draw_hud(surface, vehicle, depth, mission=None):
+    # พื้นหลังแถบ HUD
+    hud_surf = pygame.Surface((S.SCREEN_W, S.HUD_H), pygame.SRCALPHA)
+    hud_surf.fill((18, 20, 28, 252))
+    surface.blit(hud_surf, (0, 0))
 
-    pygame.draw.polygon(light_surf, (255, 250, 200, 35), [start, p1, p2])
-    surface.blit(light_surf, (0, 0))
+    # เส้นแบ่งโซนแนวตั้ง
+    pygame.draw.line(surface, (45, 50, 70), (_Z_LEFT_W, 8), (_Z_LEFT_W, S.HUD_H - 8), 1)
+    pygame.draw.line(surface, (45, 50, 70), (_Z_LEFT_W + _Z_CENTER_W, 8), (_Z_LEFT_W + _Z_CENTER_W, S.HUD_H - 8), 1)
+
+    # เส้นขอบล่าง HUD
+    pygame.draw.line(surface, (55, 62, 85), (0, S.HUD_H - 1), (S.SCREEN_W, S.HUD_H - 1), 2)
+
+    _hud_zone_left(surface, vehicle)
+    _hud_zone_center(surface, vehicle, depth)
+    _hud_zone_right(surface, vehicle, mission)
 
 
-# ----------------------------------------------------------------------
-# HUD (แถบสถานะด้านบน)
-# ----------------------------------------------------------------------
-def draw_hud(surface, vehicle, depth):
-    # แถบพื้นหลัง HUD
-    pygame.draw.rect(surface, (20, 22, 28), (0, 0, S.SCREEN_W, S.HUD_H))
-    pygame.draw.line(surface, (45, 48, 58), (0, S.HUD_H), (S.SCREEN_W, S.HUD_H), 2)
+def _hud_zone_left(surface, vehicle):
+    """โซนซ้าย: ทรัพยากรในถังขุด (3 ช่องแสดงตัวเลขกึ่งกลางไม่ล้นขอบ)"""
+    text(surface, "📦 แร่ในถัง", FONT_XS, (160, 175, 205), (14, 8))
 
-    pad = 12
-
-    # ไอคอนและจำนวนทรัพยากรในถัง (ซ้ายสุด)
-    icons = [
-        ("res_coin", vehicle.cargo[S.RES_COIN]),
-        ("res_gold", vehicle.cargo[S.RES_GOLD]),
-        ("res_diamond", vehicle.cargo[S.RES_DIAMOND]),
+    items = [
+        ("res_coin",    vehicle.cargo[S.RES_COIN],    (255, 220, 80)),
+        ("res_gold",    vehicle.cargo[S.RES_GOLD],    (255, 195, 30)),
+        ("res_diamond", vehicle.cargo[S.RES_DIAMOND], (120, 220, 255)),
     ]
-    iy = 10
-    for img_name, count in icons:
-        icon_img = pygame.transform.scale(assets.get_image(img_name), (24, 24))
-        surface.blit(icon_img, (pad, iy))
-        text(surface, str(count), FONT_M, S.COLOR_WHITE, (pad + 28, iy + 1))
-        iy += 25
 
-    # เหรียญและความลึก (ตรงกลางซ้าย)
-    text(surface, f"เหรียญ: {vehicle.coins}", FONT_M, (255, 220, 80), (pad + 80, 12))
-    text(surface, f"ความลึก: {depth} ม.", FONT_S, (200, 210, 225), (pad + 80, 38))
-    cap_col = (255, 90, 90) if vehicle.cargo_full() else (190, 235, 190)
-    cap_txt = "เต็ม!" if vehicle.cargo_full() else f"{vehicle.cargo_count}/{vehicle.max_capacity}"
-    text(surface, f"ความจุ: {cap_txt}", FONT_S, cap_col, (pad + 80, 62))
+    slot_w = 52
+    slot_h = 54
+    y_start = 28
+    x_start = 12
 
-    # แถบพลังงาน + ความจุ (ขวา)
-    bar_w, bar_h = 190, 16
-    bx = S.SCREEN_W - bar_w - pad
-    by = 16
+    for i, (img_key, count, color) in enumerate(items):
+        sx = x_start + i * (slot_w + 6)
+        slot_rect = pygame.Rect(sx, y_start, slot_w, slot_h)
+        _panel(surface, slot_rect, bg=(28, 30, 42), border=(50, 56, 76), alpha=200, radius=8)
 
-    # 1. หลอดพลังงาน
-    pygame.draw.rect(surface, S.COLOR_ENERGY_BG, (bx, by, bar_w, bar_h), border_radius=6)
-    ratio = max(0.0, vehicle.energy / vehicle.max_energy)
-    col = S.COLOR_ENERGY_BAR if ratio > 0.22 else (235, 60, 60)
-    pygame.draw.rect(surface, col, (bx, by, int(bar_w * ratio), bar_h), border_radius=6)
-    text(surface, f"พลังงาน {int(vehicle.energy)}/{int(vehicle.max_energy)}", FONT_S, S.COLOR_WHITE, (bx, by - 18))
+        # ไอคอนแร่
+        icon = pygame.transform.smoothscale(assets.get_image(img_key), (20, 20))
+        surface.blit(icon, (sx + (slot_w - 20) // 2, y_start + 6))
 
-    # ป้ายกำกับสถานะกฎแรงโน้มถ่วง (Gravitational Potential & Kinetic Energy)
-    if getattr(vehicle, "is_diving", False):
-        text(surface, "⚡ พุ่งดิ่งแรงโน้มถ่วง (Ek)!", FONT_S, (255, 170, 50), (bx + 75, by - 18))
-    elif getattr(vehicle, "grav_charge", 0.0) > 0.04:
-        pct = int((vehicle.grav_charge / S.GRAV_CHARGE_MAX) * 100)
-        text(surface, f"⬆ พลังงานศักย์ (Ep) {pct}%", FONT_S, (100, 230, 255), (bx + 85, by - 18))
+        # ตัวเลขจำนวน
+        text(surface, str(count), FONT_S, color,
+             (sx + slot_w // 2, y_start + 38), center=True, shadow=True, max_w=slot_w - 6)
 
-    # 2. หลอดความจุถัง
-    by2 = by + 30
-    pygame.draw.rect(surface, S.COLOR_CARGO_BG, (bx, by2, bar_w, bar_h), border_radius=6)
+
+def _hud_zone_center(surface, vehicle, depth):
+    """โซนกลาง: เหรียญสะสม | ความลึก | หลอดพลังงาน | หลอดความจุถัง"""
+    x0 = _Z_LEFT_W + 12
+    bar_w = 226
+
+    # แถวบน: เหรียญ (ซ้าย) + ความลึก (ขวา)
+    coin_icon = pygame.transform.smoothscale(assets.get_image("res_coin"), (18, 18))
+    surface.blit(coin_icon, (x0, 8))
+    text(surface, f"{vehicle.coins:,}", FONT_M, (255, 215, 60), (x0 + 22, 6))
+
+    depth_txt = f"⬇ {depth} ม.  T{vehicle.overall_tier()}"
+    text(surface, depth_txt, FONT_S, (140, 215, 245), (x0 + bar_w, 8), right=True)
+
+    # แถว 2: หลอดพลังงาน (สูง 20px ข้อความ FONT_XS พอดีเป๊ะ)
+    en_ratio = max(0.0, vehicle.energy / vehicle.max_energy)
+    en_fg    = (255, 145, 35) if en_ratio > 0.22 else (235, 55, 55)
+    _draw_bar(surface, x0, 34, bar_w, 20, en_ratio, en_fg,
+              bg=(45, 28, 18), radius=6, border=(70, 48, 30))
+    en_txt = f"⚡ {int(vehicle.energy)}/{int(vehicle.max_energy)}"
+    text(surface, en_txt, FONT_XS, (255, 255, 255),
+         (x0 + bar_w // 2, 44), center=True, shadow=True)
+
+    # แถว 3: หลอดความจุถัง (สูง 20px ข้อความ FONT_XS พอดีเป๊ะ)
     cratio = vehicle.cargo_count / vehicle.max_capacity if vehicle.max_capacity else 0.0
-    c_col = (240, 70, 70) if vehicle.cargo_full() else S.COLOR_CARGO_BAR
-    pygame.draw.rect(surface, c_col, (bx, by2, int(bar_w * cratio), bar_h), border_radius=6)
-    pygame.draw.rect(surface, (60, 65, 80), (bx, by2, bar_w, bar_h), 1, border_radius=6)
-    text(surface, "ถังเก็บของ", FONT_S, S.COLOR_WHITE, (bx, by2 - 18))
+    c_fg   = (240, 70, 70) if vehicle.cargo_full() else (75, 195, 100)
+    _draw_bar(surface, x0, 60, bar_w, 20, cratio, c_fg,
+              bg=(24, 38, 25), radius=6, border=(45, 68, 48))
+    cap_lbl = "ถังเต็ม!" if vehicle.cargo_full() else f"ถัง: {vehicle.cargo_count}/{vehicle.max_capacity}"
+    cap_col = (255, 140, 130) if vehicle.cargo_full() else (225, 245, 225)
+    text(surface, f"📦 {cap_lbl}", FONT_XS, cap_col,
+         (x0 + bar_w // 2, 70), center=True, shadow=True)
 
-    # เลเวลของหัวขุดและมอเตอร์
-    lvl_txt = f"หัวขุด Lv.{vehicle.levels['power']}   มอเตอร์ Lv.{vehicle.levels['speed']}"
-    text(surface, lvl_txt, FONT_S, (185, 195, 215), (bx, by2 + 22))
 
+def _hud_zone_right(surface, vehicle, mission=None):
+    """โซนขวา: ภารกิจผสมประจำตา (Quest Tracker) ตรวจสอบเงื่อนไขแบบเรียลไทม์"""
+    panel = pygame.Rect(_Z_LEFT_W + _Z_CENTER_W + 8, 6, _Z_RIGHT_W - 16, 78)
+
+    if mission is None:
+        # กรณีไม่มีภารกิจ แสดงสถานะการขับขี่
+        _panel(surface, panel, bg=(26, 28, 40), border=(50, 56, 78), alpha=210, radius=10)
+        text(surface, "🎯 โหมดอิสระ", FONT_S, (200, 210, 230), (panel.centerx, panel.top + 24), center=True)
+        text(surface, "ขุดแร่และอัปเกรดตามใจชอบ", FONT_XS, (140, 150, 175), (panel.centerx, panel.top + 48), center=True)
+        return
+
+    diff_info = mission.diff_info
+    all_done = mission.is_completed()
+
+    # กรอบพาเนลภารกิจตามระดับความยาก
+    border_color = (255, 220, 80) if all_done else diff_info["border_color"]
+    _panel(surface, panel, bg=diff_info["bg_color"], border=border_color, alpha=235, radius=10)
+
+    # แถว 1: ตราสัญลักษณ์ความยาก + ชื่อภารกิจ
+    text(surface, diff_info["badge"], FONT_XS, diff_info["color"], (panel.left + 8, panel.top + 8))
+    text(surface, mission.title, FONT_S, (240, 245, 255), (panel.left + 72, panel.top + 7), max_w=panel.w - 80)
+
+    if all_done:
+        # แจ้งเตือนเมื่อครบทุกข้อ
+        text(surface, "⭐ ภารกิจครบทุกข้อแล้ว! ⭐", FONT_S, (255, 225, 80),
+             (panel.centerx, panel.top + 34), center=True)
+        text(surface, "🏠 ขับกลับบ้านเพื่อรับชัยชนะ!", FONT_XS, (160, 245, 185),
+             (panel.centerx, panel.top + 55), center=True)
+    else:
+        # แสดงรายการเป้าหมายพร้อมเครื่องหมายถูก
+        goals = mission.get_goals_status()
+        # แถว 2 (เป้าหมาย 1 & 2)
+        if len(goals) > 0:
+            c0 = (100, 235, 120) if goals[0][2] else (215, 220, 235)
+            chk0 = "✓" if goals[0][2] else "•"
+            text(surface, f"{chk0} {goals[0][5]}", FONT_XS, c0, (panel.left + 10, panel.top + 32), max_w=120)
+        if len(goals) > 1:
+            c1 = (100, 235, 120) if goals[1][2] else (215, 220, 235)
+            chk1 = "✓" if goals[1][2] else "•"
+            text(surface, f"{chk1} {goals[1][5]}", FONT_XS, c1, (panel.left + 134, panel.top + 32), max_w=120)
+
+        # แถว 3 (เป้าหมาย 3 & 4)
+        if len(goals) > 2:
+            c2 = (100, 235, 120) if goals[2][2] else (215, 220, 235)
+            chk2 = "✓" if goals[2][2] else "•"
+            text(surface, f"{chk2} {goals[2][5]}", FONT_XS, c2, (panel.left + 10, panel.top + 54), max_w=120)
+        if len(goals) > 3:
+            c3 = (100, 235, 120) if goals[3][2] else (215, 220, 235)
+            chk3 = "✓" if goals[3][2] else "•"
+            text(surface, f"{chk3} {goals[3][5]}", FONT_XS, c3, (panel.left + 134, panel.top + 54), max_w=120)
+        elif len(goals) <= 2:
+            text(surface, "(ครบทุกข้อแล้วกลับบ้าน)", FONT_XS, (140, 150, 175),
+                 (panel.left + 134, panel.top + 54), max_w=120)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เล็งเป้า / Hint / Toast
+# ─────────────────────────────────────────────────────────────────────────────
 
 def draw_aim_indicator(surface, vehicle, mouse_pos, camera_y):
-    """วาดกรอบเล็งเป้าหมายเวลาคลิกเมาส์"""
     mx, my = mouse_pos
     if my <= S.HUD_H:
         return
@@ -348,192 +423,400 @@ def draw_aim_indicator(surface, vehicle, mouse_pos, camera_y):
     t_col = int(mx // S.TILE)
     t_row = int(world_y // S.TILE)
     if 0 <= t_col < S.COLS and 0 <= t_row < S.WORLD_ROWS:
-        sx = t_col * S.TILE
-        sy = t_row * S.TILE - camera_y + S.HUD_H
+        sx  = t_col * S.TILE
+        sy  = t_row * S.TILE - camera_y + S.HUD_H
         rect = pygame.Rect(sx, sy, S.TILE, S.TILE)
-        pygame.draw.rect(surface, (255, 230, 100, 140), rect, 2, border_radius=4)
+        pygame.draw.rect(surface, (255, 230, 100), rect, 2, border_radius=4)
 
 
 def draw_hint(surface, msg):
-    w = FONT_M.size(msg)[0] + 30
-    rect = pygame.Rect((S.SCREEN_W - w) // 2, S.SCREEN_H - 58, w, 36)
-    panel = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    panel.fill((15, 18, 24, 215))
-    surface.blit(panel, rect.topleft)
-    pygame.draw.rect(surface, (60, 68, 85), rect, 1, border_radius=6)
-    text(surface, msg, FONT_M, S.COLOR_WHITE, rect.center, center=True, shadow=False)
-
-
-# ----------------------------------------------------------------------
-# เมนูและปุ่มกด
-# ----------------------------------------------------------------------
-def button(surface, rect, label, font=None, base=(65, 75, 95), hover=False):
-    font = font or FONT_M
-    color = tuple(min(255, c + 25) for c in base) if hover else base
-    pygame.draw.rect(surface, color, rect, border_radius=10)
-    pygame.draw.rect(surface, (30, 32, 42), rect, 2, border_radius=10)
-    text(surface, label, font, S.COLOR_WHITE, rect.center, center=True)
-    return rect
-
-
-def dim_overlay(surface, alpha=160):
-    ov = pygame.Surface((S.SCREEN_W, S.SCREEN_H), pygame.SRCALPHA)
-    ov.fill((10, 12, 18, alpha))
-    surface.blit(ov, (0, 0))
-
-
-def draw_main_menu(surface, has_save, mouse_pos):
-    surface.fill((30, 48, 72))
-    for i in range(6):
-        pygame.draw.circle(surface, (255, 255, 255, 30), (80 + i * 130, 90 + (i % 2) * 40), 24)
-    text(surface, "DIG & TREASURE", FONT_XL, S.COLOR_WHITE, (S.SCREEN_W // 2, 170), center=True)
-    text(surface, "ขุดดิน หาสมบัติ อัพเกรดรถขุด", FONT_M, (210, 230, 255), (S.SCREEN_W // 2, 218), center=True)
-
-    buttons = {}
-    y = 300
-    labels = [("new", "เริ่มเกมใหม่")]
-    if has_save:
-        labels.append(("continue", "เล่นต่อ (Continue)"))
-    labels.append(("quit", "ออกจากเกม"))
-
-    for key, label in labels:
-        rect = pygame.Rect(S.SCREEN_W // 2 - 140, y, 280, 54)
-        button(surface, rect, label, hover=rect.collidepoint(mouse_pos))
-        buttons[key] = rect
-        y += 70
-    return buttons
-
-
-def draw_pause_menu(surface, mouse_pos):
-    dim_overlay(surface)
-    text(surface, "หยุดชั่วคราว", FONT_L, S.COLOR_WHITE, (S.SCREEN_W // 2, 210), center=True)
-    buttons = {}
-    labels = [("resume", "เล่นต่อ"), ("save_quit", "บันทึกและออก"), ("quit_nosave", "ออกโดยไม่บันทึก")]
-    y = 278
-    for key, label in labels:
-        rect = pygame.Rect(S.SCREEN_W // 2 - 150, y, 300, 54)
-        button(surface, rect, label, hover=rect.collidepoint(mouse_pos))
-        buttons[key] = rect
-        y += 66
-
-    # ปุ่มเปิด/ปิดเสียง (รูปไอคอนลำโพง)
-    muted = assets.is_muted()
-    btn_size = 56
-    mute_rect = pygame.Rect(S.SCREEN_W // 2 - btn_size // 2, y + 8, btn_size, btn_size)
-    is_hovered = mute_rect.collidepoint(mouse_pos)
-
-    # วงกลมพื้นหลังปุ่ม
-    btn_color = (120, 45, 45) if muted else (45, 105, 70)
-    if is_hovered:
-        btn_color = tuple(min(255, c + 30) for c in btn_color)
-    pygame.draw.circle(surface, btn_color, mute_rect.center, btn_size // 2)
-    pygame.draw.circle(surface, (30, 32, 42), mute_rect.center, btn_size // 2, 2)
-
-    # วาดไอคอนลำโพง
-    cx, cy = mute_rect.center
-    icon_color = (255, 255, 255)
-
-    # ตัวลำโพง (สี่เหลี่ยมคางหมู)
-    speaker_pts = [
-        (cx - 10, cy - 7),  # บนซ้าย
-        (cx - 4,  cy - 7),  # บนขวา (ขอบ box)
-        (cx + 2,  cy - 13), # บนขวา (เขี้ยว)
-        (cx + 2,  cy + 13), # ล่างขวา (เขี้ยว)
-        (cx - 4,  cy + 7),  # ล่างขวา (ขอบ box)
-        (cx - 10, cy + 7),  # ล่างซ้าย
-    ]
-    pygame.draw.polygon(surface, icon_color, speaker_pts)
-
-    # คลื่นเสียง (arcs)
-    if not muted:
-        for i, (r, w) in enumerate([(9, 2), (15, 2)]):
-            pygame.draw.arc(surface, icon_color,
-                            pygame.Rect(cx + 2 - r, cy - r, r * 2, r * 2),
-                            math.radians(-50), math.radians(50), w)
-    else:
-        # เส้น X แทนการปิดเสียง
-        x_color = (255, 120, 100)
-        pygame.draw.line(surface, x_color, (cx + 6, cy - 11), (cx + 17, cy + 11), 3)
-        pygame.draw.line(surface, x_color, (cx + 17, cy - 11), (cx + 6, cy + 11), 3)
-
-    # ข้อความขนาดเล็กใต้ปุ่ม
-    label_text = "ปิดเสียงอยู่" if muted else "เปิดเสียง"
-    text(surface, label_text, FONT_S, (200, 210, 225),
-         (mute_rect.centerx, mute_rect.bottom + 10), center=True)
-
-    buttons["mute"] = mute_rect
-    return buttons
-
-
-def draw_shop_menu(surface, vehicle, mouse_pos):
-    dim_overlay(surface, 180)
-    panel = pygame.Rect(S.SCREEN_W // 2 - 230, 110, 460, 490)
-    pygame.draw.rect(surface, S.COLOR_UI_PANEL, panel, border_radius=14)
-    pygame.draw.rect(surface, (25, 28, 38), panel, 3, border_radius=14)
-    text(surface, "ร้านอัพเกรดรถขุด", FONT_L, S.COLOR_WHITE, (panel.centerx, panel.top + 34), center=True)
-    text(surface, f"เหรียญของคุณ: {vehicle.coins}", FONT_M, (255, 220, 80), (panel.centerx, panel.top + 68), center=True)
-
-    buttons = {}
-    y = panel.top + 105
-    for key in ("capacity", "energy", "power", "speed"):
-        cfg = S.UPGRADES[key]
-        lv = vehicle.levels[key]
-        cost = vehicle.upgrade_cost(key)
-        row = pygame.Rect(panel.left + 20, y, panel.w - 40, 78)
-        pygame.draw.rect(surface, (35, 38, 50), row, border_radius=10)
-        text(surface, f"{cfg['name']}  Lv.{lv}", FONT_M, S.COLOR_WHITE, (row.left + 16, row.top + 12))
-        if cost is None:
-            info = "อัพเกรดเต็มแล้ว"
-        else:
-            info = f"ราคา: {cost} เหรียญ  (+{cfg['step']})"
-        text(surface, info, FONT_S, (195, 205, 220), (row.left + 16, row.top + 42))
-
-        brect = pygame.Rect(row.right - 96, row.top + 18, 80, 42)
-        can = vehicle.can_upgrade(key)
-        base_color = (60, 150, 80) if can else (65, 68, 78)
-        button(surface, brect, "ซื้อ" if cost is not None else "-", FONT_S, base=base_color,
-               hover=can and brect.collidepoint(mouse_pos))
-        buttons[key] = brect
-        y += 90
-
-    close_rect = pygame.Rect(panel.centerx - 70, panel.bottom - 56, 140, 42)
-    button(surface, close_rect, "ปิด (E)", FONT_S, hover=close_rect.collidepoint(mouse_pos))
-    buttons["close"] = close_rect
-    return buttons
-
-
-def draw_end_screen(surface, title, subtitle, vehicle, mouse_pos, color=(255, 220, 100)):
-    surface.fill((22, 18, 28))
-    text(surface, title, FONT_XL, color, (S.SCREEN_W // 2, 200), center=True)
-    text(surface, subtitle, FONT_M, S.COLOR_WHITE, (S.SCREEN_W // 2, 250), center=True)
-
-    stats = [
-        f"เหรียญทั้งหมด: {vehicle.coins}",
-        f"ระดับหัวขุด: Lv.{vehicle.levels['power']}   ระดับถังเก็บ: Lv.{vehicle.levels['capacity']}",
-    ]
-    y = 310
-    for s in stats:
-        text(surface, s, FONT_M, (210, 215, 230), (S.SCREEN_W // 2, y), center=True)
-        y += 34
-
-    buttons = {}
-    labels = [("menu", "กลับเมนูหลัก"), ("quit", "ออกจากเกม")]
-    y = 430
-    for key, label in labels:
-        rect = pygame.Rect(S.SCREEN_W // 2 - 140, y, 280, 54)
-        button(surface, rect, label, hover=rect.collidepoint(mouse_pos))
-        buttons[key] = rect
-        y += 66
-    return buttons
+    max_w = S.SCREEN_W - 32
+    tw, th = FONT_M.size(msg)
+    w = min(tw + 36, max_w)
+    rect = pygame.Rect((S.SCREEN_W - w) // 2, S.SCREEN_H - 58, w, 38)
+    _panel(surface, rect, bg=(18, 22, 32), border=(70, 80, 110), alpha=225, radius=8)
+    text(surface, msg, FONT_M, (230, 235, 255), rect.center,
+         center=True, shadow=False, max_w=rect.w - 16)
 
 
 def draw_toast(surface, msg, timer):
     if timer <= 0:
         return
     alpha = min(255, int(timer * 255))
-    panel = pygame.Surface((440, 44), pygame.SRCALPHA)
-    panel.fill((25, 110, 55, min(220, alpha)))
-    rect = panel.get_rect(center=(S.SCREEN_W // 2, S.HUD_H + 40))
+    tw, th = FONT_M.size(msg)
+    max_w = S.SCREEN_W - 40
+    w = min(tw + 48, max_w)
+    rect = pygame.Rect((S.SCREEN_W - w) // 2, S.HUD_H + 34, w, 40)
+
+    panel = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+    pygame.draw.rect(panel, (20, 100, 48, min(220, alpha)),
+                     (0, 0, rect.w, rect.h), border_radius=8)
+    pygame.draw.rect(panel, (55, 195, 100, min(220, alpha)),
+                     (0, 0, rect.w, rect.h), 1, border_radius=8)
     surface.blit(panel, rect.topleft)
-    pygame.draw.rect(surface, (60, 200, 100, alpha), rect, 1, border_radius=6)
-    text(surface, msg, FONT_M, S.COLOR_WHITE, rect.center, center=True, shadow=False)
+    text(surface, msg, FONT_M, (255, 255, 255), rect.center,
+         center=True, shadow=False, max_w=rect.w - 16)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ปุ่มและฟังก์ชัน Button
+# ─────────────────────────────────────────────────────────────────────────────
+
+def button(surface, rect, label, font=None, base=(55, 65, 88), hover=False,
+           text_color=None):
+    font = font or FONT_M
+    color = tuple(min(255, c + 30) for c in base) if hover else base
+    pygame.draw.rect(surface, color, rect, border_radius=8)
+    border_col = tuple(min(255, c + 60) for c in color)
+    pygame.draw.rect(surface, border_col, rect, 1, border_radius=8)
+
+    hl_color = tuple(min(255, c + 50) for c in color)
+    hl_rect = pygame.Rect(rect.x + 2, rect.y + 2, rect.w - 4, max(4, rect.h // 3))
+    hl_surf = pygame.Surface((hl_rect.w, hl_rect.h), pygame.SRCALPHA)
+    hl_surf.fill((*hl_color, 70))
+    surface.blit(hl_surf, hl_rect.topleft)
+
+    tc = text_color or ((255, 255, 255) if hover else (225, 230, 245))
+    text(surface, label, font, tc, rect.center, center=True, max_w=rect.w - 10)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# หน้าต่างเลือกสัญญาภารกิจ (Contract Selection Modal: ง่าย / ปานกลาง / ยาก)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_contract_menu(surface, contracts, mouse_pos):
+    dim_overlay(surface, 210)
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(cx - 335, 110, 670, 560)
+    _panel(surface, panel, bg=(18, 20, 30), border=(65, 75, 110), alpha=252, radius=18)
+
+    text(surface, "📋  เลือกสัญญาภารกิจประจำตา", FONT_L, (240, 245, 255),
+         (cx, panel.top + 30), center=True)
+    text(surface, "เลือกแผนภารกิจที่ต้องการพิชิต (ทำครบทุกข้อแล้วกลับบ้านเพื่อชนะ)", FONT_S,
+         (160, 175, 205), (cx, panel.top + 60), center=True)
+
+    buttons = {}
+    card_w = 204
+    card_h = 360
+    card_y = panel.top + 90
+
+    for i, mission in enumerate(contracts):
+        card_x = panel.left + 18 + i * (card_w + 14)
+        card_rect = pygame.Rect(card_x, card_y, card_w, card_h)
+        diff_info = mission.diff_info
+
+        is_hover = card_rect.collidepoint(mouse_pos)
+        border_col = diff_info["border_color"] if not is_hover else tuple(min(255, c + 50) for c in diff_info["border_color"])
+        _panel(surface, card_rect, bg=diff_info["bg_color"], border=border_col, alpha=240, radius=12)
+
+        # ป้ายระดับความยาก
+        banner_rect = pygame.Rect(card_x + 8, card_y + 8, card_w - 16, 32)
+        pygame.draw.rect(surface, (*diff_info["border_color"], 70), banner_rect, border_radius=8)
+        text(surface, diff_info["badge"], FONT_M, diff_info["color"], banner_rect.center, center=True)
+
+        # ชื่อภารกิจ
+        text(surface, mission.title, FONT_M, (255, 255, 255),
+             (card_rect.centerx, card_y + 56), center=True, max_w=card_w - 16)
+
+        # คำอธิบายย่อ
+        text(surface, mission.desc, FONT_XS, (180, 190, 210),
+             (card_rect.centerx, card_y + 82), center=True, max_w=card_w - 20)
+
+        # เส้นคั่น
+        pygame.draw.line(surface, (55, 60, 80), (card_x + 12, card_y + 110), (card_x + card_w - 12, card_y + 110), 1)
+
+        # หัวข้อเงื่อนไข
+        text(surface, "🎯 เงื่อนไขที่ต้องพิชิต:", FONT_XS, (255, 215, 60), (card_x + 14, card_y + 120))
+
+        gy = card_y + 146
+        for key, target in mission.goals.items():
+            label = missions.format_goal_label(key, target)
+            text(surface, f"• {label}", FONT_S, (230, 235, 245), (card_x + 14, gy), max_w=card_w - 24)
+            gy += 32
+
+        # ปุ่มเลือกแผน
+        btn_rect = pygame.Rect(card_x + 14, card_rect.bottom - 52, card_w - 28, 40)
+        button(surface, btn_rect, "รับภารกิจนี้", FONT_M, base=diff_info["border_color"],
+               hover=btn_rect.collidepoint(mouse_pos))
+        buttons[f"select_{i}"] = btn_rect
+
+    # ปุ่มการทำงานด้านล่าง
+    by = panel.bottom - 54
+    btn_random = pygame.Rect(cx - 240, by, 150, 40)
+    button(surface, btn_random, "🎲 สุ่มภารกิจ", FONT_S, base=(50, 80, 130),
+           hover=btn_random.collidepoint(mouse_pos))
+    buttons["random"] = btn_random
+
+    btn_reroll = pygame.Rect(cx - 75, by, 150, 40)
+    button(surface, btn_reroll, "🔄 สุ่มชุดใหม่", FONT_S, base=(75, 65, 110),
+           hover=btn_reroll.collidepoint(mouse_pos))
+    buttons["reroll"] = btn_reroll
+
+    btn_back = pygame.Rect(cx + 90, by, 150, 40)
+    button(surface, btn_back, "✕ กลับ", FONT_S, base=(110, 45, 50),
+           hover=btn_back.collidepoint(mouse_pos))
+    buttons["back"] = btn_back
+
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เมนูหลัก (Main Menu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_main_menu(surface, has_save, mouse_pos):
+    surface.fill((22, 32, 52))
+    for row in range(S.SCREEN_H // 4):
+        darkness = int(row / (S.SCREEN_H // 4) * 30)
+        c1 = max(0, min(255, 22 - darkness // 2))
+        c2 = max(0, min(255, 32 - darkness // 2))
+        pygame.draw.line(surface, (c1, c2, 52),
+                         (0, row * 4), (S.SCREEN_W, row * 4), 4)
+
+    # ประกายดาว
+    for i in range(40):
+        sx = (i * 137 + 50) % S.SCREEN_W
+        sy = (i * 97 + 30) % (S.SCREEN_H // 2)
+        br = 100 + (i * 41) % 100
+        pygame.draw.circle(surface, (br, br, min(255, br + 30)), (sx, sy), 1 + (i % 2))
+
+    cx = S.SCREEN_W // 2
+    # เงาชื่อเกม
+    sh = FONT_XL.render("DIG & TREASURE", True, (15, 35, 70))
+    surface.blit(sh, sh.get_rect(center=(cx + 3, 163)))
+    text(surface, "DIG & TREASURE", FONT_XL, (255, 215, 60), (cx, 160), center=True)
+    text(surface, "ขุดดิน ● หาสมบัติ ● พิชิตภารกิจผสม", FONT_M, (180, 210, 255),
+         (cx, 215), center=True)
+
+    pygame.draw.line(surface, (55, 80, 130), (cx - 180, 240), (cx + 180, 240), 1)
+
+    buttons = {}
+    y = 265
+    labels = [("new", "🚀  เริ่มเกมใหม่ (เลือกภารกิจ)", (45, 130, 75))]
+    if has_save:
+        labels.append(("continue", "📂  เล่นต่อ (Continue)", (45, 85, 155)))
+    labels.append(("quit", "✕  ออกจากเกม", (110, 45, 50)))
+
+    for key, label, base_col in labels:
+        rect = pygame.Rect(cx - 165, y, 330, 52)
+        button(surface, rect, label, base=base_col,
+               hover=rect.collidepoint(mouse_pos))
+        buttons[key] = rect
+        y += 68
+
+    # ข้อความเวอร์ชันชิดขวาล่างไม่ล้นจอ
+    text(surface, "v1.1 — Composite Missions Edition", FONT_XS, (85, 95, 120),
+         (S.SCREEN_W - 16, S.SCREEN_H - 14), right=True, max_w=280)
+
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เมนู Pause
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_pause_menu(surface, mouse_pos, is_fullscreen=False):
+    dim_overlay(surface, 175)
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(cx - 170, 150, 340, 410)
+    _panel(surface, panel, bg=(20, 22, 34), border=(60, 68, 100), alpha=240, radius=16)
+
+    text(surface, "⏸  หยุดชั่วคราว", FONT_L, (235, 240, 255),
+         (cx, panel.top + 34), center=True)
+    pygame.draw.line(surface, (50, 55, 80),
+                      (panel.left + 20, panel.top + 60), (panel.right - 20, panel.top + 60), 1)
+
+    buttons = {}
+    fs_label = "🖥  ออกจากเต็มจอ" if is_fullscreen else "🖥  เต็มจอ (F11)"
+    labels = [
+        ("resume",      "▶  เล่นต่อ",           (40, 130, 70)),
+        ("fullscreen",  fs_label,               (55, 75, 130)),
+        ("save_quit",   "💾  บันทึกและออก",     (130, 95, 35)),
+        ("quit_nosave", "✕  ออกโดยไม่บันทึก",   (120, 42, 42)),
+    ]
+    y = panel.top + 80
+    for key, label, base_col in labels:
+        rect = pygame.Rect(cx - 140, y, 280, 44)
+        button(surface, rect, label, base=base_col,
+               hover=rect.collidepoint(mouse_pos))
+        buttons[key] = rect
+        y += 56
+
+    # ปุ่มเปิด/ปิดเสียง
+    muted    = assets.is_muted()
+    btn_size = 46
+    mute_rect = pygame.Rect(cx - btn_size // 2, y + 4, btn_size, btn_size)
+    is_hov   = mute_rect.collidepoint(mouse_pos)
+    btn_col  = (130, 42, 42) if muted else (40, 110, 65)
+    if is_hov:
+        btn_col = tuple(min(255, c + 30) for c in btn_col)
+    pygame.draw.circle(surface, btn_col, mute_rect.center, btn_size // 2)
+    pygame.draw.circle(surface, (40, 44, 60), mute_rect.center, btn_size // 2, 2)
+
+    mcx, mcy = mute_rect.center
+    ic = (255, 255, 255)
+    pts = [(mcx-8, mcy-6),(mcx-3, mcy-6),(mcx+2, mcy-11),
+           (mcx+2, mcy+11),(mcx-3, mcy+6),(mcx-8, mcy+6)]
+    pygame.draw.polygon(surface, ic, pts)
+    if not muted:
+        for r, w in [(8, 2), (13, 2)]:
+            pygame.draw.arc(surface, ic,
+                            pygame.Rect(mcx+2-r, mcy-r, r*2, r*2),
+                            math.radians(-50), math.radians(50), w)
+    else:
+        xc = (255, 110, 90)
+        pygame.draw.line(surface, xc, (mcx+5, mcy-9), (mcx+15, mcy+9), 3)
+        pygame.draw.line(surface, xc, (mcx+15, mcy-9), (mcx+5, mcy+9), 3)
+
+    lbl = "ปิดเสียงอยู่" if muted else "เปิดเสียง"
+    text(surface, lbl, FONT_XS, (190, 200, 220),
+         (mute_rect.centerx, mute_rect.bottom + 8), center=True)
+    buttons["mute"] = mute_rect
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ร้านอัพเกรด (Shop)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_shop_menu(surface, vehicle, mouse_pos):
+    dim_overlay(surface, 185)
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(cx - 240, 80, 480, 540)
+    _panel(surface, panel, bg=(20, 22, 34), border=(65, 72, 110), alpha=248, radius=16)
+
+    text(surface, "🔧  ร้านอัพเกรดรถขุด", FONT_L, (235, 240, 255),
+         (cx, panel.top + 28), center=True)
+    pygame.draw.line(surface, (50, 55, 80),
+                      (panel.left + 20, panel.top + 54), (panel.right - 20, panel.top + 54), 1)
+    text(surface, f"🪙  เหรียญของคุณ: {vehicle.coins:,}", FONT_M, (255, 215, 60),
+         (cx, panel.top + 72), center=True)
+
+    buttons = {}
+    y = panel.top + 98
+
+    upgrade_icons = {"capacity": "📦", "energy": "⚡", "power": "⛏", "speed": "🏎"}
+    for key in ("capacity", "energy", "power", "speed"):
+        cfg  = S.UPGRADES[key]
+        lv   = vehicle.levels[key]
+        cost = vehicle.upgrade_cost(key)
+        can  = vehicle.can_upgrade(key)
+
+        row_rect = pygame.Rect(panel.left + 16, y, panel.w - 32, 84)
+        row_bg = (32, 35, 50) if not can else (28, 40, 38)
+        _panel(surface, row_rect, bg=row_bg, border=(55, 60, 82), alpha=230, radius=10)
+
+        # ไอคอน + ชื่อ
+        icon_s = upgrade_icons.get(key, "●")
+        name_txt = f"{icon_s}  {cfg['name']}"
+        text(surface, name_txt, FONT_M, (230, 235, 255),
+             (row_rect.left + 14, row_rect.top + 10), max_w=220)
+
+        # จุดบอกระดับเลเวล (Pip dots)
+        max_lv = cfg["max_level"]
+        pip_x  = row_rect.left + 14
+        pip_y  = row_rect.top + 38
+        for i in range(max_lv):
+            pip_col = (255, 200, 50) if i < lv else (45, 48, 62)
+            pygame.draw.rect(surface, pip_col,
+                             (pip_x + i * 18, pip_y, 14, 8), border_radius=3)
+
+        # ราคา / สถานะ
+        if cost is None:
+            info_txt = "✓ MAX"
+            info_col = (110, 220, 130)
+        elif can:
+            info_txt = f"{cost:,} 🪙"
+            info_col = (255, 215, 60)
+        else:
+            info_txt = f"{cost:,} 🪙  (ไม่พอ)"
+            info_col = (200, 110, 110)
+        text(surface, info_txt, FONT_S, info_col,
+             (row_rect.left + 14, row_rect.top + 56), max_w=220)
+
+        # ปุ่มซื้อ
+        base_col = (38, 145, 72) if can else (55, 55, 70)
+        brect = pygame.Rect(row_rect.right - 96, row_rect.top + 18, 82, 46)
+        btn_lbl = "ซื้อ" if cost is not None else "MAX"
+        button(surface, brect, btn_lbl, FONT_M, base=base_col,
+               hover=can and brect.collidepoint(mouse_pos))
+        buttons[key] = brect
+        y += 94
+
+    close_rect = pygame.Rect(cx - 80, panel.bottom - 48, 160, 38)
+    button(surface, close_rect, "ปิด  (E)", FONT_S, base=(55, 58, 80),
+           hover=close_rect.collidepoint(mouse_pos))
+    buttons["close"] = close_rect
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# หน้าจอจบเกม / ชนะ (Victory & Game Over)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_end_screen(surface, title, subtitle, vehicle, mouse_pos,
+                    mission=None, color=(255, 215, 100)):
+    surface.fill((18, 14, 26))
+    for i in range(60):
+        sx = (i * 113 + 20) % S.SCREEN_W
+        sy = (i * 83 + 10) % S.SCREEN_H
+        br = 80 + (i * 37) % 120
+        pygame.draw.circle(surface, (br, br, min(255, br + 20)), (sx, sy), 1)
+
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(cx - 260, 110, 520, 520)
+    _panel(surface, panel, bg=(22, 18, 34), border=(80, 65, 120), alpha=245, radius=18)
+
+    text(surface, title, FONT_XL, color, (cx, panel.top + 46), center=True)
+    pygame.draw.line(surface, (65, 55, 95),
+                      (panel.left + 30, panel.top + 76), (panel.right - 30, panel.top + 76), 1)
+    text(surface, subtitle, FONT_M, (210, 215, 235),
+         (cx, panel.top + 98), center=True, max_w=panel.w - 40)
+
+    # กล่องสรุปภารกิจผสม
+    y = panel.top + 130
+    if mission:
+        m_box = pygame.Rect(panel.left + 24, y, panel.w - 48, 112)
+        _panel(surface, m_box, bg=mission.diff_info["bg_color"], border=mission.diff_info["border_color"], alpha=220, radius=10)
+
+        text(surface, f"🎯 ภารกิจ: {mission.title} ({mission.diff_info['badge']})",
+             FONT_M, (255, 255, 255), (m_box.left + 14, m_box.top + 10), max_w=m_box.w - 28)
+
+        # รายการเงื่อนไข
+        gy = m_box.top + 38
+        goals = mission.get_goals_status()
+        for i, (key, label, is_met, cur, tgt, prog_txt) in enumerate(goals):
+            gx = m_box.left + 14 if i % 2 == 0 else m_box.centerx + 4
+            gy_curr = gy + (i // 2) * 28
+            chk_icon = "✓" if is_met else "✗"
+            chk_col = (100, 240, 120) if is_met else (240, 90, 90)
+            text(surface, f"{chk_icon} {prog_txt}", FONT_S, chk_col, (gx, gy_curr), max_w=m_box.w // 2 - 10)
+        y += 126
+
+    # สถิติรถขุด
+    stats = [
+        f"🪙  เหรียญที่ครอบครอง: {vehicle.coins:,}",
+        f"⛏  หัวขุด Lv.{vehicle.levels['power']}    📦  ถัง Lv.{vehicle.levels['capacity']}",
+        f"⚡  พลังงาน Lv.{vehicle.levels['energy']}    🏎  มอเตอร์ Lv.{vehicle.levels['speed']}",
+    ]
+    for s in stats:
+        text(surface, s, FONT_S, (195, 205, 225), (cx, y), center=True, max_w=panel.w - 40)
+        y += 30
+
+    buttons = {}
+    labels = [
+        ("menu", "🏠  กลับเมนูหลัก", (40, 90, 160)),
+        ("quit", "✕  ออกจากเกม",     (120, 42, 42)),
+    ]
+    y = panel.bottom - 110
+    for key, label, base_col in labels:
+        rect = pygame.Rect(cx - 150, y, 300, 46)
+        button(surface, rect, label, base=base_col,
+               hover=rect.collidepoint(mouse_pos))
+        buttons[key] = rect
+        y += 54
+    return buttons

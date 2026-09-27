@@ -29,7 +29,11 @@ class Vehicle:
 
         self.cargo = {S.RES_COIN: 0, S.RES_GOLD: 0, S.RES_DIAMOND: 0}
         self.cargo_count = 0
-        self.coins = 0
+        self.coins = getattr(S, "STARTING_COINS", 0)
+
+        # คอลแบ็กแจ้งเตือนเมื่อเก็บแร่หรือทำ Gravity Dive สำหรับระบบภารกิจ
+        self.on_resource_collected = None
+        self.on_dive_performed = None
 
         self.facing = (0, 1)        # (dx, dy) ใน { (0,1), (0,-1), (1,0), (-1,0) }
         self.drilling_target = None # (col, row) ที่กำลังเจาะอยู่
@@ -54,6 +58,15 @@ class Vehicle:
         self.recalc_stats()
 
     # ------------------------------------------------------------------
+    def overall_tier(self):
+        """ระดับรวมต่ำสุดของทุกอัพเกรด (จะเพิ่มขึ้นเมื่อทุกสเตตัสถึงระดับนั้น 1..8)"""
+        return min(
+            self.levels.get("capacity", 1),
+            self.levels.get("energy", 1),
+            self.levels.get("power", 1),
+            self.levels.get("speed", 1),
+        )
+
     def recalc_stats(self):
         cap_lv = self.levels["capacity"]
         en_lv = self.levels["energy"]
@@ -68,15 +81,22 @@ class Vehicle:
         self.power = S.BASE_POWER + (pw_lv - 1) * S.UPGRADES["power"]["step"]
         self.speed = S.BASE_SPEED + (sp_lv - 1) * S.UPGRADES["speed"]["step"]
 
-        # ขนาดรถเพิ่มขึ้นตามผลรวมระดับอัพเกรดทั้งหมด
-        # แต่ละการอัพเกรด 1 ครั้ง = +0.75px ทันที (total Lv.4→32, size 40→61px)
-        total_lv = cap_lv + en_lv + pw_lv + sp_lv  # ช่วง: 4 (ทุก Lv.1) ถึง 32 (ทุก Lv.8)
-        new_size = round(S.BASE_VEHICLE_SIZE + (total_lv - 4) * S.VEHICLE_SIZE_PER_LEVEL)
+        # ขนาดรถเพิ่มขึ้นเมื่ออัพเกรดครบทุกอย่างถึงระดับใหม่ (Tier)
+        # เมื่อทุกสเตตัสอย่างน้อย Lv.2 -> รถใหญ่ขึ้น, Lv.3 -> ใหญ่ขึ้นอีก ... จนถึง Lv.8 ตันสุด (~62px)
+        tier = self.overall_tier()
+        new_size = round(S.BASE_VEHICLE_SIZE + (tier - 1) * S.VEHICLE_SIZE_PER_TIER)
         self.w = new_size
         self.h = new_size
 
     def drill_level(self):
         return self.levels["power"]
+
+    @property
+    def drill_reach(self):
+        """จำนวนบล็อกที่เจาะได้กว้างขึ้นตาม Tier (ทุก 2 Tier เพิ่ม 1 บล็อก, สูงสุด 4)
+        Tier 1-2 = 1 บล็อก, Tier 3-4 = 2 บล็อก, Tier 5-6 = 3 บล็อก, Tier 7-8 = 4 บล็อก"""
+        tier = self.overall_tier()
+        return min(4, (tier + 1) // 2)
 
     @property
     def rect(self):
@@ -160,7 +180,7 @@ class Vehicle:
                 return (0, 1 if dy > 0 else -1)
 
     # ------------------------------------------------------------------
-    def update(self, dt, world, raw_input, particle_system=None):
+    def update(self, dt, world, raw_input, particle_system=None, shift_pressed=False):
         self.is_moving = False
         self.is_drilling = False
         self.vibe_x = 0.0
@@ -213,33 +233,34 @@ class Vehicle:
 
             current_speed = self.speed
 
-        # --- กฎฟิสิกส์แรงโน้มถ่วง 2: เมื่อพุ่งลงมาด้านล่าง (Down) -> ปลดปล่อยพลังงานศักย์เป็นพลังงานจลน์ (Ek = 1/2*m*v^2) ---
-        elif dir_y > 0:
-            if self.grav_charge > 0.04:
-                self.is_diving = True
-                self.dive_power = self.grav_charge / S.GRAV_CHARGE_MAX
-                grav_speed_boost = 1.0 + (S.GRAV_SPEED_MULT - 1.0) * self.dive_power
-                current_speed = self.speed * grav_speed_boost
+        # --- กฎฟิสิกส์แรงโน้มถ่วง 2: กด Shift เพื่อ ปลดปล่อยพลังงานศักย์เป็นพลังงานจลน์ในทิศที่กำลังเดิน ---
+        elif shift_pressed and self.grav_charge > 0.04:
+            self.is_diving = True
+            self.dive_power = self.grav_charge / S.GRAV_CHARGE_MAX
+            grav_speed_boost = 1.0 + (S.GRAV_SPEED_MULT - 1.0) * self.dive_power
+            current_speed = self.speed * grav_speed_boost
 
-                # เส้นลมความเร็วสูงพุ่งดิ่ง
-                self._dive_particle_timer += dt
-                if particle_system and self._dive_particle_timer >= 0.04:
-                    particle_system.spawn_gravity_dive_trail(self.x, self.y - half_h)
-                    self._dive_particle_timer = 0.0
+            # เส้นลมความเร็วสูงพุ่งดิ่ง
+            self._dive_particle_timer += dt
+            if particle_system and self._dive_particle_timer >= 0.04:
+                particle_system.spawn_gravity_dive_trail(self.x, self.y - half_h)
+                self._dive_particle_timer = 0.0
 
-                # เสียงหวีดพุ่งดิ่ง
-                if self._grav_sound_timer <= 0.0:
-                    assets.play_sound("boost", volume=0.75)
-                    self._grav_sound_timer = 0.4
-                else:
-                    self._grav_sound_timer -= dt
-
-                # ค่อย ๆ ใช้พลังงานศักย์ขณะพุ่งดิ่ง
-                self.grav_charge = max(0.0, self.grav_charge - dt * S.GRAV_DECAY_RATE)
+            # เสียงหวีดพุ่งดิ่ง
+            if self._grav_sound_timer <= 0.0:
+                assets.play_sound("boost", volume=0.75)
+                self._grav_sound_timer = 0.4
             else:
-                self.is_diving = False
-                self.dive_power = 0.0
-                current_speed = self.speed
+                self._grav_sound_timer -= dt
+
+            # ค่อย ๆ ใช้พลังงานศักย์ขณะพุ่งดิ่ง
+            self.grav_charge = max(0.0, self.grav_charge - dt * S.GRAV_DECAY_RATE)
+
+        # --- เคลื่อนที่ปกติ (ไม่ได้กด Shift หรือไม่มีชาร์จ) ---
+        elif dir_y > 0:
+            self.is_diving = False
+            self.dive_power = 0.0
+            current_speed = self.speed
 
         # เคลื่อนที่แนวนอน (ซ้าย/ขวา) - อนุรักษ์พลังงานศักย์เดิมไว้ (Conservation of Energy)
         else:
@@ -344,6 +365,10 @@ class Vehicle:
 
     # ------------------------------------------------------------------
     def _handle_drilling(self, col, row, world, dt, particle_system):
+        """เจาะบล็อกหลัก + บล็อกข้าง ๆ ตาม drill_reach (Tier-based)
+        - เคลื่อนที่แนวนอน (ซ้าย/ขวา) → เจาะบล็อกบน/ล่างเพิ่มด้วย
+        - เคลื่อนที่แนวตั้ง (ขึ้น/ลง)  → เจาะบล็อกซ้าย/ขวาเพิ่มด้วย
+        reach 1 = 1 บล็อก, reach 2 = 3 บล็อก (±1), reach 3 = 5 บล็อก, reach 4 = 7 บล็อก"""
         self.drilling_target = (col, row)
         tile_type = world.get_tile(col, row)
         is_rock = (tile_type == S.T_ROCK)
@@ -387,6 +412,8 @@ class Vehicle:
             if particle_system and self.dive_power > 0.2:
                 particle_system.spawn_ground_slam_shockwave(self.x, row * S.TILE)
                 particle_system.add_floating_text(f"💥 GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
+                if self.on_dive_performed:
+                    self.on_dive_performed()
             # สลายพลังงานศักย์ลงเมื่อกระแทกพื้น
             self.grav_charge = max(0.0, self.grav_charge - dt * 2.2)
 
@@ -394,46 +421,84 @@ class Vehicle:
         dug_through = world.damage_tile(col, row, damage_amount)
 
         if dug_through:
-            # บล็อกแตกสำเร็จ!
-            t_cx = col * S.TILE + S.TILE / 2.0
-            t_cy = row * S.TILE + S.TILE / 2.0
-            assets.play_sound("dig_pop" if not is_rock else "rock_clink", volume=0.75)
-
-            if particle_system:
-                particle_system.spawn_block_break(t_cx, t_cy, is_rock=is_rock)
-
-            res = world.collect_resource(col, row)
-            if res == S.RES_FUEL:
-                # กระป๋องน้ำมัน: เติมพลังงานทันที ไม่ต้องเก็บในถัง
-                restore = min(S.FUEL_CANISTER_RESTORE, self.max_energy - self.energy)
-                self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
-                assets.play_sound("refuel", volume=0.8)
-                if particle_system:
-                    particle_system.add_floating_text(
-                        f"⛽ +{int(restore)} พลังงาน!", t_cx, t_cy, (255, 210, 60)
-                    )
-            elif res != S.RES_NONE:
-                if self.add_cargo(res):
-                    name = S.RESOURCE_NAME.get(res, "สมบัติ")
-                    val = S.RESOURCE_VALUE.get(res, 1)
-                    if res == S.RES_COIN:
-                        assets.play_sound("coin", volume=0.7)
-                        color = (255, 220, 80)
-                    elif res == S.RES_GOLD:
-                        assets.play_sound("coin", volume=0.85)
-                        color = (255, 195, 30)
-                    else:  # Diamond
-                        assets.play_sound("gem", volume=0.9)
-                        color = (120, 230, 255)
-
-                    if particle_system:
-                        particle_system.add_floating_text(f"+1 {name} (+{val})", t_cx, t_cy, color)
-                else:
-                    # ถังเต็ม เก็บไม่ได้
-                    if particle_system:
-                        particle_system.add_floating_text("ถังเต็ม!", t_cx, t_cy, (255, 80, 80))
-
+            self._on_block_dug(col, row, world, particle_system, is_rock)
             self.drilling_target = None
+
+        # ---- Drill Reach: เจาะบล็อกข้าง ๆ ตาม Tier ----
+        reach = self.drill_reach  # 1..4
+        if reach > 1:
+            # ทิศที่เคลื่อนที่แนวนอน (left/right) → เจาะบล็อกบน/ล่างของเป้าหมาย
+            # ทิศที่เคลื่อนที่แนวตั้ง (up/down)   → เจาะบล็อกซ้าย/ขวาของเป้าหมาย
+            fx, fy = self.facing
+            if fx != 0:
+                perp_axis = "y"  # เคลื่อนที่แนวนอน → เจาะแนวตั้ง
+            else:
+                perp_axis = "x"  # เคลื่อนที่แนวตั้ง → เจาะแนวนอน
+
+            # สร้างรายการ offset (-reach+1 .. reach-1, ไม่รวม 0 ซึ่งเป็นบล็อกหลัก)
+            half = reach - 1  # reach=2 → half=1 → offset ±1
+            side_damage = damage_amount  # บล็อกข้างได้รับความเสียหายเท่ากับบล็อกหลัก (แตกพร้อมกัน)
+            for off in range(-half, half + 1):
+                if off == 0:
+                    continue
+                if perp_axis == "y":
+                    sc, sr = col, row + off
+                else:
+                    sc, sr = col + off, row
+
+                if world.is_solid(sc, sr):
+                    side_tile = world.get_tile(sc, sr)
+                    side_is_rock = (side_tile == S.T_ROCK)
+                    # หินข้างก็ต้องเช็ค drill_level ด้วย
+                    if side_is_rock and self.drill_level() < S.ROCK_MIN_DRILL_LEVEL:
+                        continue
+                    side_dug = world.damage_tile(sc, sr, side_damage)
+                    if side_dug:
+                        self._on_block_dug(sc, sr, world, particle_system, side_is_rock)
+
+    def _on_block_dug(self, col, row, world, particle_system, is_rock):
+        """ประมวลผลเมื่อบล็อกแตกสำเร็จ (เก็บทรัพยากร + เสียง + อนุภาค)"""
+        t_cx = col * S.TILE + S.TILE / 2.0
+        t_cy = row * S.TILE + S.TILE / 2.0
+        assets.play_sound("dig_pop" if not is_rock else "rock_clink", volume=0.75)
+
+        if particle_system:
+            particle_system.spawn_block_break(t_cx, t_cy, is_rock=is_rock)
+
+        res = world.collect_resource(col, row)
+        if res == S.RES_FUEL:
+            # กระป๋องน้ำมัน: เติมพลังงานทันที ไม่ต้องเก็บในถัง
+            restore = min(S.FUEL_CANISTER_RESTORE, self.max_energy - self.energy)
+            self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
+            assets.play_sound("refuel", volume=0.8)
+            if self.on_resource_collected:
+                self.on_resource_collected(S.RES_FUEL)
+            if particle_system:
+                particle_system.add_floating_text(
+                    f"⛽ +{int(restore)} พลังงาน!", t_cx, t_cy, (255, 210, 60)
+                )
+        elif res != S.RES_NONE:
+            if self.add_cargo(res):
+                if self.on_resource_collected:
+                    self.on_resource_collected(res)
+                name = S.RESOURCE_NAME.get(res, "สมบัติ")
+                val = S.RESOURCE_VALUE.get(res, 1)
+                if res == S.RES_COIN:
+                    assets.play_sound("coin", volume=0.7)
+                    color = (255, 220, 80)
+                elif res == S.RES_GOLD:
+                    assets.play_sound("coin", volume=0.85)
+                    color = (255, 195, 30)
+                else:  # Diamond
+                    assets.play_sound("gem", volume=0.9)
+                    color = (120, 230, 255)
+
+                if particle_system:
+                    particle_system.add_floating_text(f"+1 {name} (+{val})", t_cx, t_cy, color)
+            else:
+                # ถังเต็ม เก็บไม่ได้
+                if particle_system:
+                    particle_system.add_floating_text("ถังเต็ม!", t_cx, t_cy, (255, 80, 80))
 
     # ------------------------------------------------------------------
     def to_dict(self):

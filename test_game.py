@@ -89,13 +89,57 @@ def run_tests():
     assert game.vehicle.cargo[S.RES_GOLD] > 0, "Resource was not collected into cargo!"
     print(f"  -> Cargo collected: {game.vehicle.cargo}")
 
-    # Test 4: Save and Load
-    print("Testing Save and Load...")
-    SM.save_game(game.world, game.vehicle)
+    # Test 4: UI Rendering (Menu, Contracts, HUD, Shop, Pause, Victory)
+    print("Testing UI Rendering for all states...")
+    ui.draw_main_menu(screen, False, (100, 100))
+    ui.draw_main_menu(screen, True, (100, 100))
+
+    import missions
+    contracts = missions.get_three_contract_options()
+    assert len(contracts) == 3
+    assert contracts[0].difficulty == "easy"
+    assert contracts[1].difficulty == "medium"
+    assert contracts[2].difficulty == "hard"
+    ui.draw_contract_menu(screen, contracts, (100, 100))
+    ui.draw_shop_menu(screen, game.vehicle, (100, 100))
+    ui.draw_pause_menu(screen, (100, 100))
+    ui.draw_end_screen(screen, "ทดสอบ", "คำอธิบาย", game.vehicle, (100, 100), mission=game.mission)
+    print("  -> UI rendering across all menus and HUD passed OK.")
+
+    # Test 5: Composite Mission Progression & Victory
+    print("Testing Composite Mission Progression and Victory...")
+    test_bp = {
+        "id": "test_m",
+        "difficulty": "easy",
+        "title": "ภารกิจทดสอบ",
+        "desc": "ทดสอบระบบ",
+        "goals": {
+            "diamonds": 1,
+            "gold": 2,
+            "depth": 10,
+        },
+    }
+    m = missions.Mission(test_bp)
+    game.mission = m
+    assert not game.mission.is_completed()
+
+    # Progress goals
+    game.mission.add_mined_resource(S.RES_DIAMOND)
+    game.mission.add_mined_resource(S.RES_GOLD)
+    game.mission.add_mined_resource(S.RES_GOLD)
+    game.mission.update_from_game(game.vehicle, 12)
+    assert game.mission.is_completed(), "All goals should be met!"
+    print("  -> Composite Mission goals met correctly.")
+
+    # Test 6: Save and Load with Mission
+    print("Testing Save and Load with Mission...")
+    game.save_and_quit()
     assert SM.save_exists(), "Save file does not exist!"
-    data = SM.load_game()
-    assert "world" in data and "vehicle" in data
-    print("  -> Save and Load passed OK.")
+    game.load_game()
+    assert game.mission is not None
+    assert game.mission.id == "test_m"
+    assert game.mission.is_completed()
+    print("  -> Save and Load with Mission passed OK.")
 
     # Clean up test save
     if SM.save_exists():
@@ -107,3 +151,4 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
+

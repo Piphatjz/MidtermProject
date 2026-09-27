@@ -55,6 +55,10 @@ class World:
                 self.max_hp[r][c] = 0.0
 
     def _pick_underground_tile(self, depth):
+        # ความลึกตั้งแต่ 40 ช่องลงไปเป็นชั้นหินล้วน (Solid Bedrock Layer)
+        if depth >= getattr(S, "ROCK_LAYER_DEPTH", 40):
+            return S.T_ROCK
+
         rock_chance = min(0.10 + depth * 0.0035, 0.45)
         cave_chance = 0.035
         roll = self.rng.random()
