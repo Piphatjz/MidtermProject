@@ -44,6 +44,12 @@ class Vehicle:
         self._drill_sound_timer = 0.0
         self._smoke_timer = 0.0
         self._low_energy_timer = 0.0
+        # ระบบฟิสิกส์กฎแรงโน้มถ่วง (Gravitational Potential & Kinetic Energy)
+        self.grav_charge = 0.0          # พลังงานศักย์โน้มถ่วงที่สะสมจากการขึ้นด้านบน (0.0 ถึง S.GRAV_CHARGE_MAX)
+        self.is_diving = False          # กำลังพุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วงหรือไม่
+        self.dive_power = 0.0           # อัตราความแรงขณะพุ่งดิ่ง
+        self._grav_sound_timer = 0.0    # จับเวลาเล่นเสียงชาร์จศักย์
+        self._dive_particle_timer = 0.0 # จับเวลาพ่นลมต้านพุ่งดิ่ง
 
         self.recalc_stats()
 
@@ -61,6 +67,13 @@ class Vehicle:
         self.energy += max(0.0, self.max_energy - old_max_energy)
         self.power = S.BASE_POWER + (pw_lv - 1) * S.UPGRADES["power"]["step"]
         self.speed = S.BASE_SPEED + (sp_lv - 1) * S.UPGRADES["speed"]["step"]
+
+        # ขนาดรถเพิ่มขึ้นตามผลรวมระดับอัพเกรดทั้งหมด
+        # แต่ละการอัพเกรด 1 ครั้ง = +0.75px ทันที (total Lv.4→32, size 40→61px)
+        total_lv = cap_lv + en_lv + pw_lv + sp_lv  # ช่วง: 4 (ทุก Lv.1) ถึง 32 (ทุก Lv.8)
+        new_size = round(S.BASE_VEHICLE_SIZE + (total_lv - 4) * S.VEHICLE_SIZE_PER_LEVEL)
+        self.w = new_size
+        self.h = new_size
 
     def drill_level(self):
         return self.levels["power"]
@@ -170,26 +183,80 @@ class Vehicle:
 
         dir_x, dir_y = self._resolve_input_direction(raw_input)
 
+        # อัพเดทตัวนับเวลาความเร็วบูสต์ (Boost timer)
+        dir_x, dir_y = self._resolve_input_direction(raw_input)
+
         if (dir_x, dir_y) == (0, 0):
             self.drilling_target = None
+            self.is_diving = False
             return
 
         self.facing = (dir_x, dir_y)
+        current_speed = self.speed
+        half_w = self.w / 2.0
+        half_h = self.h / 2.0
+
+        # --- กฎฟิสิกส์แรงโน้มถ่วง 1: เมื่อเคลื่อนที่ขึ้นไปด้านบน (Up) -> สะสมพลังงานศักย์โน้มถ่วง (Ep = mgh) ---
+        if dir_y < 0:
+            self.is_diving = False
+            self.dive_power = 0.0
+            self.grav_charge = min(S.GRAV_CHARGE_MAX, self.grav_charge + dt * S.GRAV_CHARGE_RATE)
+
+            # เสียงและเอฟเฟกต์ประจุไอพ่นต้านแรงโน้มถ่วง
+            self._grav_sound_timer += dt
+            if self._grav_sound_timer >= 0.22:
+                charge_vol = 0.30 + 0.35 * (self.grav_charge / S.GRAV_CHARGE_MAX)
+                assets.play_sound("charge", volume=charge_vol)
+                self._grav_sound_timer = 0.0
+            if particle_system and random.random() < 0.45:
+                particle_system.spawn_charge_spark(self.x, self.y + half_h)
+
+            current_speed = self.speed
+
+        # --- กฎฟิสิกส์แรงโน้มถ่วง 2: เมื่อพุ่งลงมาด้านล่าง (Down) -> ปลดปล่อยพลังงานศักย์เป็นพลังงานจลน์ (Ek = 1/2*m*v^2) ---
+        elif dir_y > 0:
+            if self.grav_charge > 0.04:
+                self.is_diving = True
+                self.dive_power = self.grav_charge / S.GRAV_CHARGE_MAX
+                grav_speed_boost = 1.0 + (S.GRAV_SPEED_MULT - 1.0) * self.dive_power
+                current_speed = self.speed * grav_speed_boost
+
+                # เส้นลมความเร็วสูงพุ่งดิ่ง
+                self._dive_particle_timer += dt
+                if particle_system and self._dive_particle_timer >= 0.04:
+                    particle_system.spawn_gravity_dive_trail(self.x, self.y - half_h)
+                    self._dive_particle_timer = 0.0
+
+                # เสียงหวีดพุ่งดิ่ง
+                if self._grav_sound_timer <= 0.0:
+                    assets.play_sound("boost", volume=0.75)
+                    self._grav_sound_timer = 0.4
+                else:
+                    self._grav_sound_timer -= dt
+
+                # ค่อย ๆ ใช้พลังงานศักย์ขณะพุ่งดิ่ง
+                self.grav_charge = max(0.0, self.grav_charge - dt * S.GRAV_DECAY_RATE)
+            else:
+                self.is_diving = False
+                self.dive_power = 0.0
+                current_speed = self.speed
+
+        # เคลื่อนที่แนวนอน (ซ้าย/ขวา) - อนุรักษ์พลังงานศักย์เดิมไว้ (Conservation of Energy)
+        else:
+            self.is_diving = False
+            self.dive_power = 0.0
+            current_speed = self.speed
 
         col, row = self.grid_pos()
         cell_cx = col * S.TILE + S.TILE / 2.0
         cell_cy = row * S.TILE + S.TILE / 2.0
 
-        # อัตราการเคลื่อนที่เฟรมนี้
-        move_dist = self.speed * dt
-        half_w = self.w / 2.0
-        half_h = self.h / 2.0
+        move_dist = current_speed * dt
 
         # -----------------------------
         # 1. การเคลื่อนที่แนวนอน (ซ้าย / ขวา)
         # -----------------------------
         if dir_x != 0:
-            # ดึงรถให้อยู่ตรงกลางเลนแนวนอนอย่างนุ่มนวล
             self.y += (cell_cy - self.y) * min(1.0, dt * 14.0)
 
             if dir_x > 0:  # ไปทางขวา
@@ -199,7 +266,6 @@ class Vehicle:
                 block_edge = target_col * S.TILE
 
                 if is_solid and (self.x + half_w + move_dist) >= block_edge:
-                    # ชนบล็อกทางขวา - หยุดชิดขอบและเริ่มเจาะบล็อกนี้
                     self.x = block_edge - half_w
                     self._handle_drilling(target_col, target_row, world, dt, particle_system)
                 else:
@@ -214,7 +280,6 @@ class Vehicle:
                 block_edge = (target_col + 1) * S.TILE
 
                 if is_solid and (self.x - half_w - move_dist) <= block_edge:
-                    # ชนบล็อกทางซ้าย - หยุดชิดขอบและเริ่มเจาะบล็อกนี้
                     self.x = block_edge + half_w
                     self._handle_drilling(target_col, target_row, world, dt, particle_system)
                 else:
@@ -226,17 +291,15 @@ class Vehicle:
         # 2. การเคลื่อนที่แนวตั้ง (ขึ้น / ลง)
         # -----------------------------
         elif dir_y != 0:
-            # ดึงรถให้อยู่ตรงกลางเลนแนวตั้งอย่างนุ่มนวล
             self.x += (cell_cx - self.x) * min(1.0, dt * 14.0)
 
-            if dir_y > 0:  # ลงล่าง
+            if dir_y > 0:  # ลงล่าง (Down)
                 target_col = col
                 target_row = row + 1
                 is_solid = world.is_solid(target_col, target_row)
                 block_edge = target_row * S.TILE
 
                 if is_solid and (self.y + half_h + move_dist) >= block_edge:
-                    # ชนบล็อกข้างล่าง - หยุดชิดขอบและเริ่มเจาะบล็อกนี้
                     self.y = block_edge - half_h
                     self._handle_drilling(target_col, target_row, world, dt, particle_system)
                 else:
@@ -244,14 +307,13 @@ class Vehicle:
                     self.is_moving = True
                     self.drilling_target = None
 
-            elif dir_y < 0:  # ขึ้นบน
+            elif dir_y < 0:  # ขึ้นบน (Up)
                 target_col = col
                 target_row = row - 1
                 is_solid = world.is_solid(target_col, target_row)
                 block_edge = (target_row + 1) * S.TILE
 
                 if is_solid and (self.y - half_h - move_dist) <= block_edge:
-                    # ชนบล็อกข้างบน - หยุดชิดขอบและเริ่มเจาะ
                     self.y = block_edge + half_h
                     self._handle_drilling(target_col, target_row, world, dt, particle_system)
                 else:
@@ -266,12 +328,11 @@ class Vehicle:
         max_x = S.SCREEN_W - half_w
         self.x = max(min_x, min(max_x, self.x))
 
-        # ลดพลังงานเมื่อวิ่ง
-        if self.is_moving:
+        # ลดพลังงานเมื่อวิ่ง (เมื่อพุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วง ไม่ต้องใช้พลังงานเครื่องยนต์!)
+        if self.is_moving and not self.is_diving:
             self.energy = max(0.0, self.energy - S.BASE_ENERGY_DRAIN_MOVE * dt)
             self._smoke_timer += dt
             if particle_system and self._smoke_timer >= 0.12:
-                # ปล่อยควันออกจากท้ายรถ
                 bx = self.x - self.facing[0] * half_w
                 by = self.y - self.facing[1] * half_h
                 particle_system.spawn_exhaust_smoke(bx, by)
@@ -316,8 +377,20 @@ class Vehicle:
             fy = self.y + self.facing[1] * (self.h / 2.0 + 4)
             particle_system.spawn_dig_debris(fx, fy, is_rock=is_rock)
 
-        # ทำความเสียหายต่อบล็อก
-        damage_amount = self.power * dt
+        # ทำความเสียหายต่อบล็อก (เมื่อพุ่งดิ่งชนบล็อกด้านล่างตามแรงโน้มถ่วง พลังเจาะจะแรงขึ้นหลายเท่า Ground Slam!)
+        drill_mult = 1.0
+        if self.is_diving and self.facing == (0, 1):
+            drill_mult = 1.0 + (S.GRAV_DRILL_MULT - 1.0) * self.dive_power
+            # สั่นสะเทือนพื้นและสร้างคลื่นกระแทก
+            self.vibe_x = (random.random() * 2.0 - 1.0) * 3.5 * self.dive_power
+            self.vibe_y = (random.random() * 2.0 - 1.0) * 3.5 * self.dive_power
+            if particle_system and self.dive_power > 0.2:
+                particle_system.spawn_ground_slam_shockwave(self.x, row * S.TILE)
+                particle_system.add_floating_text(f"💥 GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
+            # สลายพลังงานศักย์ลงเมื่อกระแทกพื้น
+            self.grav_charge = max(0.0, self.grav_charge - dt * 2.2)
+
+        damage_amount = self.power * drill_mult * dt
         dug_through = world.damage_tile(col, row, damage_amount)
 
         if dug_through:
@@ -330,7 +403,16 @@ class Vehicle:
                 particle_system.spawn_block_break(t_cx, t_cy, is_rock=is_rock)
 
             res = world.collect_resource(col, row)
-            if res != S.RES_NONE:
+            if res == S.RES_FUEL:
+                # กระป๋องน้ำมัน: เติมพลังงานทันที ไม่ต้องเก็บในถัง
+                restore = min(S.FUEL_CANISTER_RESTORE, self.max_energy - self.energy)
+                self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
+                assets.play_sound("refuel", volume=0.8)
+                if particle_system:
+                    particle_system.add_floating_text(
+                        f"⛽ +{int(restore)} พลังงาน!", t_cx, t_cy, (255, 210, 60)
+                    )
+            elif res != S.RES_NONE:
                 if self.add_cargo(res):
                     name = S.RESOURCE_NAME.get(res, "สมบัติ")
                     val = S.RESOURCE_VALUE.get(res, 1)
@@ -373,3 +455,6 @@ class Vehicle:
         self.cargo = {int(k): v for k, v in data["cargo"].items()}
         self.cargo_count = data["cargo_count"]
         self.coins = data["coins"]
+        self.grav_charge = 0.0
+        self.is_diving = False
+        self.dive_power = 0.0

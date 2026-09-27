@@ -52,6 +52,21 @@ def get_image(name):
     return fallback
 
 
+def toggle_mute():
+    """สลับระหว่างเปิด/ปิดเสียงทั้งหมด"""
+    global _SOUND_ENABLED
+    if not pygame.mixer.get_init():
+        return
+    _SOUND_ENABLED = not _SOUND_ENABLED
+    vol = 0.0 if not _SOUND_ENABLED else 1.0
+    pygame.mixer.music.set_volume(vol)
+
+
+def is_muted():
+    """คืนค่า True ถ้าเสียงถูกปิดอยู่"""
+    return not _SOUND_ENABLED
+
+
 def play_sound(name, volume=1.0, cooldown=0.06):
     """เล่นเสียงเอฟเฟกต์ มี cooldown ป้องกันเสียงเล่นซ้อนกันถี่เกินไป"""
     global _SOUND_ENABLED

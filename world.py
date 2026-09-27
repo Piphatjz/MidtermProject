@@ -70,12 +70,15 @@ class World:
         diamond_chance = min(0.015 + depth * 0.0012, 0.12)
         gold_chance = min(0.06 + depth * 0.001, 0.20)
         coin_chance = 0.22
+        fuel_chance = S.FUEL_CANISTER_CHANCE
         roll = self.rng.random()
-        if roll < diamond_chance:
+        if roll < fuel_chance:
+            return S.RES_FUEL
+        if roll < fuel_chance + diamond_chance:
             return S.RES_DIAMOND
-        if roll < diamond_chance + gold_chance:
+        if roll < fuel_chance + diamond_chance + gold_chance:
             return S.RES_GOLD
-        if roll < diamond_chance + gold_chance + coin_chance:
+        if roll < fuel_chance + diamond_chance + gold_chance + coin_chance:
             return S.RES_COIN
         return S.RES_NONE
 

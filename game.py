@@ -133,6 +133,8 @@ class Game:
                         elif key == "quit_nosave":
                             pygame.quit()
                             sys.exit()
+                        elif key == "mute":
+                            assets.toggle_mute()
             elif self.state == SHOP:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):

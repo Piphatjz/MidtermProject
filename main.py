@@ -6,6 +6,7 @@ main.py
 import pygame
 import settings as S
 import ui
+# import random
 from game import Game
 
 

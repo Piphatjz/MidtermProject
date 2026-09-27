@@ -472,6 +472,33 @@ def generate_sound_effects():
         samples.append(wave_val * env * 0.4)
     write_wav("low_energy.wav", samples, sr)
 
+    # 10. charge.wav - Rising electromagnetic induction whine
+    dur = 0.22
+    n = int(sr * dur)
+    samples = []
+    for i in range(n):
+        t = i / sr
+        f = 240 + 750 * (t / dur) ** 1.3
+        wave_val = 0.65 * math.sin(2 * math.pi * f * t) + 0.35 * math.sin(2 * math.pi * f * 2 * t)
+        env = math.sin(math.pi * (t / dur))
+        samples.append(wave_val * env * 0.5)
+    write_wav("charge.wav", samples, sr)
+
+    # 11. boost.wav - Kinetic burst whoosh / rocket blast
+    dur = 0.38
+    n = int(sr * dur)
+    samples = []
+    b_rng = random.Random(999)
+    for i in range(n):
+        t = i / sr
+        f = 520 * math.exp(-t * 7.5) + 75
+        noise = (b_rng.random() * 2 - 1) * 0.45
+        wave_val = 0.6 * math.sin(2 * math.pi * f * t) + noise
+        env = math.exp(-t * 4.5)
+        samples.append(wave_val * env * 0.7)
+    write_wav("boost.wav", samples, sr)
+
+
 
 def build_all_assets():
     print("Generating game textures and sprites...")

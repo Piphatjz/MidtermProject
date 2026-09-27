@@ -10,6 +10,7 @@ ui.py
 - เมนูต่าง ๆ (หลัก, หยุดเกม, ร้านค้า, จบเกม)
 """
 import math
+import random
 import pygame
 import settings as S
 import assets
@@ -141,6 +142,8 @@ def _draw_resource_sprite(surface, res, sx, sy):
         img = assets.get_image("res_gold")
     elif res == S.RES_DIAMOND:
         img = assets.get_image("res_diamond")
+    elif res == S.RES_FUEL:
+        img = assets.get_image("res_fuel")
     else:
         return
     surface.blit(img, (sx, sy))
@@ -174,10 +177,15 @@ def draw_vehicle(surface, vehicle, camera_y):
     fx, fy = vehicle.facing
     _draw_headlight(surface, vx, vy, fx, fy)
 
-    # ตัวถังรถ
-    body_img = assets.get_image("vehicle_body")
+    # ตัวถังรถ — scale ตามขนาดจริงของรถ (เพิ่มขึ้นตามระดับอัพเกรด)
+    body_img = pygame.transform.smoothscale(
+        assets.get_image("vehicle_body"), (vehicle.w, vehicle.h)
+    )
     rect = body_img.get_rect(center=(int(vx), int(vy)))
     surface.blit(body_img, rect)
+
+    # ขนาดหัวสว่าน = ~60% ของขนาดรถ
+    drill_size = max(20, int(vehicle.w * 0.60))
 
     # หัวสว่านตามทิศทาง
     if fx == 1:
@@ -193,7 +201,9 @@ def draw_vehicle(surface, vehicle, camera_y):
         drill_name = "drill_down"
         drill_pos = (rect.centerx, rect.bottom + 2)
 
-    drill_img = assets.get_image(drill_name)
+    drill_img = pygame.transform.smoothscale(
+        assets.get_image(drill_name), (drill_size, drill_size)
+    )
 
     # อนิเมชันการหมุนสว่าน
     if vehicle.is_drilling or vehicle.is_moving:
@@ -211,9 +221,37 @@ def draw_vehicle(surface, vehicle, camera_y):
 
     # ถ้ากำลังเจาะ มีประกายแสงสีขาวที่ปลายสว่าน
     if vehicle.is_drilling:
-        tip = (d_center[0] + fx * 10, d_center[1] + fy * 10)
+        spark_offset = drill_size // 2 + 4
+        tip = (d_center[0] + fx * spark_offset, d_center[1] + fy * spark_offset)
         pygame.draw.circle(surface, (255, 255, 230), tip, 5)
         pygame.draw.circle(surface, (255, 200, 50), tip, 8, 1)
+
+    # เอฟเฟกต์สะสมพลังงานศักย์โน้มถ่วง (Gravitational Potential Energy Ep = mgh)
+    grav_ch = getattr(vehicle, "grav_charge", 0.0)
+    if grav_ch > 0:
+        ratio = grav_ch / S.GRAV_CHARGE_MAX
+        aura_rad = int(22 + 6 * ratio)
+        glow_alpha = int(60 + 90 * ratio)
+        glow_surf = pygame.Surface((aura_rad * 2 + 4, aura_rad * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(glow_surf, (100, 220, 255, glow_alpha), (aura_rad + 2, aura_rad + 2), aura_rad, 2)
+        surface.blit(glow_surf, (int(vx - aura_rad - 2), int(vy - aura_rad - 2)))
+
+        # หลอดแสดงพลังงานศักย์โน้มถ่วงแนวตั้งข้างตัวรถ (แสดงระดับความสูง/ศักย์ Ep)
+        bar_h = 28
+        bar_w = 4
+        bx_bar = int(rect.right + 6)
+        by_bar = int(rect.centery - bar_h / 2)
+        fill_h = max(2, int(bar_h * ratio))
+        pygame.draw.rect(surface, (20, 25, 35), (bx_bar, by_bar, bar_w, bar_h), border_radius=2)
+        pygame.draw.rect(surface, (100, 230, 255), (bx_bar, by_bar + (bar_h - fill_h), bar_w, fill_h), border_radius=2)
+        pygame.draw.rect(surface, (180, 245, 255), (bx_bar, by_bar, bar_w, bar_h), 1, border_radius=2)
+
+    # เอฟเฟกต์พุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วง (Gravitational Dive)
+    if getattr(vehicle, "is_diving", False):
+        for dist in (14, 24, 34):
+            tail_x = vx + (random.random() * 8 - 4)
+            tail_y = vy - dist + (random.random() * 4 - 2)
+            pygame.draw.line(surface, (255, 220, 100), (int(tail_x), int(tail_y)), (int(tail_x), int(tail_y - 8)), 2)
 
     # สัญลักษณ์เตือนพลังงานหมด
     if vehicle.stalled:
@@ -278,8 +316,14 @@ def draw_hud(surface, vehicle, depth):
     ratio = max(0.0, vehicle.energy / vehicle.max_energy)
     col = S.COLOR_ENERGY_BAR if ratio > 0.22 else (235, 60, 60)
     pygame.draw.rect(surface, col, (bx, by, int(bar_w * ratio), bar_h), border_radius=6)
-    pygame.draw.rect(surface, (60, 65, 80), (bx, by, bar_w, bar_h), 1, border_radius=6)
     text(surface, f"พลังงาน {int(vehicle.energy)}/{int(vehicle.max_energy)}", FONT_S, S.COLOR_WHITE, (bx, by - 18))
+
+    # ป้ายกำกับสถานะกฎแรงโน้มถ่วง (Gravitational Potential & Kinetic Energy)
+    if getattr(vehicle, "is_diving", False):
+        text(surface, "⚡ พุ่งดิ่งแรงโน้มถ่วง (Ek)!", FONT_S, (255, 170, 50), (bx + 75, by - 18))
+    elif getattr(vehicle, "grav_charge", 0.0) > 0.04:
+        pct = int((vehicle.grav_charge / S.GRAV_CHARGE_MAX) * 100)
+        text(surface, f"⬆ พลังงานศักย์ (Ep) {pct}%", FONT_S, (100, 230, 255), (bx + 85, by - 18))
 
     # 2. หลอดความจุถัง
     by2 = by + 30
@@ -362,15 +406,62 @@ def draw_main_menu(surface, has_save, mouse_pos):
 
 def draw_pause_menu(surface, mouse_pos):
     dim_overlay(surface)
-    text(surface, "หยุดชั่วคราว", FONT_L, S.COLOR_WHITE, (S.SCREEN_W // 2, 220), center=True)
+    text(surface, "หยุดชั่วคราว", FONT_L, S.COLOR_WHITE, (S.SCREEN_W // 2, 210), center=True)
     buttons = {}
     labels = [("resume", "เล่นต่อ"), ("save_quit", "บันทึกและออก"), ("quit_nosave", "ออกโดยไม่บันทึก")]
-    y = 290
+    y = 278
     for key, label in labels:
         rect = pygame.Rect(S.SCREEN_W // 2 - 150, y, 300, 54)
         button(surface, rect, label, hover=rect.collidepoint(mouse_pos))
         buttons[key] = rect
         y += 66
+
+    # ปุ่มเปิด/ปิดเสียง (รูปไอคอนลำโพง)
+    muted = assets.is_muted()
+    btn_size = 56
+    mute_rect = pygame.Rect(S.SCREEN_W // 2 - btn_size // 2, y + 8, btn_size, btn_size)
+    is_hovered = mute_rect.collidepoint(mouse_pos)
+
+    # วงกลมพื้นหลังปุ่ม
+    btn_color = (120, 45, 45) if muted else (45, 105, 70)
+    if is_hovered:
+        btn_color = tuple(min(255, c + 30) for c in btn_color)
+    pygame.draw.circle(surface, btn_color, mute_rect.center, btn_size // 2)
+    pygame.draw.circle(surface, (30, 32, 42), mute_rect.center, btn_size // 2, 2)
+
+    # วาดไอคอนลำโพง
+    cx, cy = mute_rect.center
+    icon_color = (255, 255, 255)
+
+    # ตัวลำโพง (สี่เหลี่ยมคางหมู)
+    speaker_pts = [
+        (cx - 10, cy - 7),  # บนซ้าย
+        (cx - 4,  cy - 7),  # บนขวา (ขอบ box)
+        (cx + 2,  cy - 13), # บนขวา (เขี้ยว)
+        (cx + 2,  cy + 13), # ล่างขวา (เขี้ยว)
+        (cx - 4,  cy + 7),  # ล่างขวา (ขอบ box)
+        (cx - 10, cy + 7),  # ล่างซ้าย
+    ]
+    pygame.draw.polygon(surface, icon_color, speaker_pts)
+
+    # คลื่นเสียง (arcs)
+    if not muted:
+        for i, (r, w) in enumerate([(9, 2), (15, 2)]):
+            pygame.draw.arc(surface, icon_color,
+                            pygame.Rect(cx + 2 - r, cy - r, r * 2, r * 2),
+                            math.radians(-50), math.radians(50), w)
+    else:
+        # เส้น X แทนการปิดเสียง
+        x_color = (255, 120, 100)
+        pygame.draw.line(surface, x_color, (cx + 6, cy - 11), (cx + 17, cy + 11), 3)
+        pygame.draw.line(surface, x_color, (cx + 17, cy - 11), (cx + 6, cy + 11), 3)
+
+    # ข้อความขนาดเล็กใต้ปุ่ม
+    label_text = "ปิดเสียงอยู่" if muted else "เปิดเสียง"
+    text(surface, label_text, FONT_S, (200, 210, 225),
+         (mute_rect.centerx, mute_rect.bottom + 10), center=True)
+
+    buttons["mute"] = mute_rect
     return buttons
 
 

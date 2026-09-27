@@ -115,6 +115,48 @@ class ParticleSystem:
         c = (180, 180, 190)
         self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=-10.0))
 
+    def spawn_charge_spark(self, x, y):
+        """ประกายไฟฟ้าระหว่างชาร์จพลังงานศักย์ขึ้นสู่ด้านบน (Gravitational potential spark)"""
+        for _ in range(2):
+            vx = self.rng.uniform(-30, 30)
+            vy = self.rng.uniform(10, 45) # ประกายพ่นลงด้านล่าง
+            life = self.rng.uniform(0.15, 0.3)
+            size = self.rng.uniform(2.0, 3.5)
+            c = self.rng.choice([
+                (80, 225, 255),   # Cyan electric
+                (255, 240, 110),  # Yellow spark
+                (170, 255, 250),  # Bright white-blue
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=0.0))
+
+    def spawn_gravity_dive_trail(self, x, y):
+        """เส้นลมพุ่งดิ่งและความเร็วสูงตามแรงโน้มถ่วง (Gravitational dive air streaks)"""
+        for _ in range(3):
+            vx = self.rng.uniform(-10, 10)
+            vy = self.rng.uniform(-130, -60) # พุ่งสวนขึ้นไปด้านบนเหมือนลมต้านความเร็วสูง
+            life = self.rng.uniform(0.16, 0.30)
+            size = self.rng.uniform(2.5, 4.5)
+            c = self.rng.choice([
+                (100, 230, 255),  # Cyan gravity air
+                (255, 255, 255),  # White sonic trail
+                (255, 200, 60),   # Kinetic friction yellow
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=40.0))
+
+    def spawn_ground_slam_shockwave(self, cx, cy):
+        """คลื่นกระแทกดินกระจายเมื่อพุ่งดิ่งชนพื้นดินด้วยแรงโน้มถ่วง (Ground Slam Impact)"""
+        for _ in range(16):
+            vx = self.rng.uniform(-150, 150)
+            vy = self.rng.uniform(-90, 15)
+            life = self.rng.uniform(0.28, 0.50)
+            size = self.rng.uniform(3.5, 6.5)
+            c = self.rng.choice([
+                (240, 195, 110),  # Shockwave dust
+                (150, 110, 70),   # Earth brown
+                (255, 245, 180),  # Impact flash
+            ])
+            self.particles.append(Particle(cx, cy, vx, vy, life, size, c, gravity=200.0))
+
     def add_floating_text(self, text, x, y, color=(255, 255, 100)):
         self.floating_texts.append(FloatingText(text, x, y, color))
 
