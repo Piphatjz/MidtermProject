@@ -141,6 +141,138 @@ def run_tests():
     assert game.mission.is_completed()
     print("  -> Save and Load with Mission passed OK.")
 
+    # Test 7: Customization Assets Verification
+    print("Testing Customization Assets (Vehicles, Drills, Non-Square Icons)...")
+    assert assets.get_image("res_fuel") is not None
+    for vtid in S.VEHICLE_TYPES:
+        for cid in S.VEHICLE_COLORS:
+            img_key = f"vehicle_{vtid}_{cid}"
+            surf = assets.get_image(img_key)
+            assert surf is not None, f"Missing vehicle sprite: {img_key}"
+            assert surf.get_width() == 42 and surf.get_height() == 42
+
+    for dhid in S.DRILL_HEADS:
+        for ddir in ["down", "up", "left", "right"]:
+            d_key = f"drill_{dhid}_{ddir}"
+            surf = assets.get_image(d_key)
+            assert surf is not None, f"Missing drill sprite: {d_key}"
+            assert surf.get_width() == 24 and surf.get_height() == 24
+    print("  -> All 32 vehicle sprites, 20 drill head sprites, and non-square fuel canister verified OK.")
+
+    # Test 8: Chassis Stat Modifiers & Drill Head Mechanics
+    print("Testing Chassis Stat Modifiers & Drill Head Mechanics...")
+    v_std = Vehicle(2, 2, vehicle_type="standard", drill_head="spiral")
+    v_scout = Vehicle(2, 2, vehicle_type="scout", drill_head="spiral")
+    v_titan = Vehicle(2, 2, vehicle_type="titan", drill_head="spiral")
+    v_hover = Vehicle(2, 2, vehicle_type="hover", drill_head="spiral")
+
+    # Scout should have higher speed and lower capacity than Standard
+    assert v_scout.speed > v_std.speed, "Scout must be faster than Standard!"
+    assert v_scout.max_capacity < v_std.max_capacity, "Scout must have smaller capacity!"
+
+    # Titan should have higher capacity and extra energy
+    assert v_titan.max_capacity > v_std.max_capacity, "Titan must have larger capacity!"
+    assert v_titan.max_energy > v_std.max_energy, "Titan must have extra energy!"
+
+    # Drill Heads Mechanics:
+    # 1. Titanium Diamond can dig rock at Level 1 without rock_min_drill_level restriction
+    v_spiral = Vehicle(2, 2, drill_head="spiral")
+    v_diamond = Vehicle(2, 2, drill_head="diamond")
+    assert not v_spiral.can_drill_rock(), "Standard spiral drill at Lv1 cannot drill rock!"
+    assert v_diamond.can_drill_rock(), "Titanium Diamond drill MUST bypass rock requirement at Lv1!"
+
+    # 2. Plasma Cutter has +65% drilling power
+    v_plasma = Vehicle(2, 2, drill_head="plasma")
+    assert v_plasma.power > v_std.power * 1.5, "Plasma cutter must have elevated drilling power!"
+
+    # 3. Magnetic Vortex has bonus sell multiplier
+    v_vortex = Vehicle(2, 2, drill_head="vortex")
+    v_std.cargo[S.RES_GOLD] = 1
+    v_std.cargo_count = 1
+    v_vortex.cargo[S.RES_GOLD] = 1
+    v_vortex.cargo_count = 1
+    earned_std = v_std.sell_cargo()
+    earned_vortex = v_vortex.sell_cargo()
+    assert earned_vortex > earned_std, "Magnetic Vortex must yield more coins from selling cargo!"
+
+    # 4. Seismic Hammer has reach = 2 immediately
+    v_seismic = Vehicle(2, 2, drill_head="seismic")
+    assert v_seismic.drill_reach == 2, "Seismic Hammer must have reach 2 from Tier 1!"
+    print("  -> Vehicle chassis modifiers and drill head abilities verified OK.")
+
+    # Test 9: Garage Menu UI & Interactive State Transitions
+    print("Testing Garage Menu UI & Transitions...")
+    # Render all 3 garage tabs
+    ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="color")
+    ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="type")
+    ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="drill")
+
+    # Test state transition MENU -> GARAGE
+    test_game = Game(screen)
+    assert test_game.state == "menu"
+    test_game.draw()
+    assert "garage" in test_game.buttons
+
+    # Simulate clicking 'garage' button
+    garage_btn = test_game.buttons["garage"]
+    click_evt = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=garage_btn.center)
+    test_game.handle_event(click_evt)
+    assert test_game.state == "garage", "Must transition to GARAGE from menu!"
+    test_game.draw()
+
+    # In GARAGE: click tab_type
+    assert "tab_type" in test_game.buttons
+    click_type_tab = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["tab_type"].center)
+    test_game.handle_event(click_type_tab)
+    assert test_game.garage_tab == "type"
+    test_game.draw()
+
+    # Click titan type
+    assert "type_titan" in test_game.buttons
+    click_titan = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["type_titan"].center)
+    test_game.handle_event(click_titan)
+    assert test_game.vehicle.vehicle_type == "titan"
+
+    # Click tab_drill
+    click_drill_tab = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["tab_drill"].center)
+    test_game.handle_event(click_drill_tab)
+    assert test_game.garage_tab == "drill"
+    test_game.draw()
+
+    # Click drill_diamond
+    assert "drill_diamond" in test_game.buttons
+    click_diamond = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["drill_diamond"].center)
+    test_game.handle_event(click_diamond)
+    assert test_game.vehicle.drill_head == "diamond"
+
+    # Click apply
+    assert "apply" in test_game.buttons
+    click_apply = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["apply"].center)
+    test_game.handle_event(click_apply)
+    assert test_game.state == "menu", "Must return to previous state (MENU) after apply!"
+
+    # New game should inherit selected vehicle customizations
+    test_game.new_game()
+    assert test_game.vehicle.vehicle_type == "titan"
+    assert test_game.vehicle.drill_head == "diamond"
+    print("  -> Garage menu navigation, selection, and application verified OK.")
+
+    # Test 10: Customization Save & Load Persistence
+    print("Testing Customization Save & Load Persistence...")
+    test_game.vehicle.color_id = "carbon"
+    test_game.vehicle.vehicle_type = "hover"
+    test_game.vehicle.drill_head = "plasma"
+    test_game.vehicle.recalc_stats()
+    test_game.save_and_quit()
+
+    loaded_game = Game(screen)
+    loaded_game.load_game()
+    assert loaded_game.vehicle.color_id == "carbon"
+    assert loaded_game.vehicle.vehicle_type == "hover"
+    assert loaded_game.vehicle.drill_head == "plasma"
+    assert loaded_game.vehicle.power > v_std.power * 1.5
+    print("  -> Customization saved and restored accurately.")
+
     # Clean up test save
     if SM.save_exists():
         SM.delete_save()

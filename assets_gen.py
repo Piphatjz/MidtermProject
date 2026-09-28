@@ -217,61 +217,169 @@ def generate_resources():
     # Bright shine star
     d.line([(cx - 4, cy - 3), (cx + 4, cy - 3)], fill=(255, 255, 255, 255), width=2)
     d.line([(cx, cy - 7), (cx, cy + 1)], fill=(255, 255, 255, 255), width=2)
-    img_dia.save(os.path.join(IMG_DIR, "res_diamond.png"))
+    # 4. Fuel Canister (High-tech transparent Jerrycan / Battery cell)
+    img_fuel = Image.new("RGBA", (TILE, TILE), (0, 0, 0, 0))
+    d_fuel = ImageDraw.Draw(img_fuel)
+    # Canister metal body
+    d_fuel.rounded_rectangle([10, 12, 38, 44], radius=5, fill=(235, 90, 30, 255), outline=(150, 45, 15, 255), width=2)
+    # Metallic nozzle and cap
+    d_fuel.rounded_rectangle([13, 6, 21, 13], radius=2, fill=(180, 185, 195, 255), outline=(100, 105, 115, 255), width=1)
+    # Handle on top
+    d_fuel.line([(24, 7), (35, 7)], fill=(160, 50, 20, 255), width=3)
+    d_fuel.line([(24, 7), (24, 12)], fill=(160, 50, 20, 255), width=2)
+    d_fuel.line([(35, 7), (35, 12)], fill=(160, 50, 20, 255), width=2)
+    # Gauge window with glowing amber fuel
+    d_fuel.rounded_rectangle([15, 19, 33, 38], radius=3, fill=(40, 25, 18, 255), outline=(160, 60, 20, 255), width=1)
+    d_fuel.rounded_rectangle([17, 23, 31, 36], radius=2, fill=(255, 195, 45, 255))
+    # Electric lightning decal on canister
+    d_fuel.polygon([(24, 25), (20, 30), (24, 30), (23, 35), (28, 28), (24, 28)], fill=(255, 255, 220, 255))
+    # Highlights
+    d_fuel.line([(12, 16), (12, 40)], fill=(255, 155, 105, 200), width=1)
+    img_fuel.save(os.path.join(IMG_DIR, "res_fuel.png"))
 
 
 def generate_vehicle_sprites():
-    # Mining Vehicle Base Chassis (42x42)
+    import settings as S
     size = 42
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
 
-    # Caterpillar treads (top & bottom or sides)
-    tread_col = (50, 52, 58, 255)
-    tread_rim = (30, 32, 36, 255)
-    # Left tread
-    d.rounded_rectangle([2, 4, 10, size - 4], radius=3, fill=tread_col, outline=tread_rim, width=1)
-    for ty in range(8, size - 6, 6):
-        d.line([(3, ty), (9, ty)], fill=(80, 84, 92, 255), width=1)
+    for c_id, c_data in S.VEHICLE_COLORS.items():
+        p_col = (*c_data["primary"], 255)
+        d_col = (*c_data["dark"], 255)
+        h_col = (*c_data["highlight"], 255)
+        t_col = (*c_data["tread"], 255)
+        g_col = (*c_data["glass"], 255)
+        t_rim = (30, 32, 36, 255)
 
-    # Right tread
-    d.rounded_rectangle([size - 10, 4, size - 2, size - 4], radius=3, fill=tread_col, outline=tread_rim, width=1)
-    for ty in range(8, size - 6, 6):
-        d.line([(size - 9, ty), (size - 3, ty)], fill=(80, 84, 92, 255), width=1)
+        for vtype in S.VEHICLE_TYPES.keys():
+            img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+            d = ImageDraw.Draw(img)
 
-    # Main cabin / chassis (Vibrant Industrial Yellow / Amber)
-    body_col = (245, 175, 25, 255)
-    body_shadow = (195, 130, 15, 255)
-    d.rounded_rectangle([8, 6, size - 8, size - 6], radius=5, fill=body_col, outline=(140, 90, 10, 255), width=2)
-    d.rounded_rectangle([10, size - 14, size - 10, size - 8], radius=2, fill=body_shadow)
+            if vtype == "standard":
+                # Dual caterpillar treads
+                d.rounded_rectangle([2, 4, 10, size - 4], radius=3, fill=t_col, outline=t_rim, width=1)
+                for ty in range(8, size - 6, 6):
+                    d.line([(3, ty), (9, ty)], fill=h_col, width=1)
 
-    # Hazard stripes on back
-    d.line([(12, size - 10), (16, size - 14)], fill=(40, 40, 40, 255), width=2)
-    d.line([(20, size - 10), (24, size - 14)], fill=(40, 40, 40, 255), width=2)
-    d.line([(28, size - 10), (32, size - 14)], fill=(40, 40, 40, 255), width=2)
+                d.rounded_rectangle([size - 10, 4, size - 2, size - 4], radius=3, fill=t_col, outline=t_rim, width=1)
+                for ty in range(8, size - 6, 6):
+                    d.line([(size - 9, ty), (size - 3, ty)], fill=h_col, width=1)
 
-    # Cockpit dome with glass reflection
-    glass_col = (70, 170, 240, 255)
-    d.rounded_rectangle([12, 10, size - 12, 22], radius=4, fill=glass_col, outline=(30, 80, 130, 255), width=1)
-    d.line([(15, 13), (25, 13)], fill=(220, 245, 255, 220), width=2)
+                # Cabin chassis
+                d.rounded_rectangle([8, 6, size - 8, size - 6], radius=5, fill=p_col, outline=d_col, width=2)
+                d.rounded_rectangle([10, size - 14, size - 10, size - 8], radius=2, fill=d_col)
+                # Hazard stripes
+                d.line([(12, size - 10), (16, size - 14)], fill=(40, 40, 40, 255), width=2)
+                d.line([(20, size - 10), (24, size - 14)], fill=(40, 40, 40, 255), width=2)
+                d.line([(28, size - 10), (32, size - 14)], fill=(40, 40, 40, 255), width=2)
+                # Cockpit dome
+                d.rounded_rectangle([12, 10, size - 12, 22], radius=4, fill=g_col, outline=(30, 80, 130, 255), width=1)
+                d.line([(15, 13), (25, 13)], fill=(220, 245, 255, 220), width=2)
 
-    img.save(os.path.join(IMG_DIR, "vehicle_body.png"))
+            elif vtype == "scout":
+                # 4 Wide racing off-road wheels
+                d.rounded_rectangle([1, 4, 9, 15], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([size - 9, 4, size - 1, 15], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([1, size - 15, 9, size - 4], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([size - 9, size - 15, size - 1, size - 4], radius=2, fill=t_col, outline=t_rim, width=1)
+                # Aerodynamic wedge frame
+                d.polygon([(size // 2, 4), (size - 9, 16), (size - 9, size - 8), (9, size - 8), (9, 16)], fill=p_col, outline=d_col)
+                # Fighter canopy
+                d.polygon([(size // 2, 8), (size - 13, 20), (13, 20)], fill=g_col, outline=(20, 60, 110, 255))
+                d.line([(size // 2, 10), (size // 2 - 4, 18)], fill=(255, 255, 255, 220), width=1)
+                # Dual rocket thrusters
+                d.rectangle([12, size - 7, 17, size - 2], fill=(255, 120, 30, 255), outline=(180, 60, 10, 255))
+                d.rectangle([size - 17, size - 7, size - 12, size - 2], fill=(255, 120, 30, 255), outline=(180, 60, 10, 255))
 
-    # Drill Bits (cone with rotating spiral grooves) for 4 directions
-    for angle, name in [(0, "drill_down"), (90, "drill_right"), (180, "drill_up"), (270, "drill_left")]:
+            elif vtype == "titan":
+                # Heavy Quad-treads
+                d.rounded_rectangle([1, 2, 10, 18], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([size - 10, 2, size - 1, 18], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([1, size - 18, 10, size - 2], radius=2, fill=t_col, outline=t_rim, width=1)
+                d.rounded_rectangle([size - 10, size - 18, size - 1, size - 2], radius=2, fill=t_col, outline=t_rim, width=1)
+                # Massive reinforced hull
+                d.rounded_rectangle([7, 4, size - 7, size - 4], radius=4, fill=p_col, outline=d_col, width=2)
+                # Armor visor cockpit
+                d.rounded_rectangle([11, 7, size - 11, 19], radius=2, fill=(40, 45, 55, 255), outline=(20, 22, 28, 255))
+                d.rectangle([14, 11, size - 14, 15], fill=g_col)
+                # Heavy Cargo Bed / Hopper
+                d.rounded_rectangle([9, 21, size - 9, size - 6], radius=2, fill=d_col, outline=(30, 32, 40, 255))
+                d.line([(11, 25), (size - 11, 25)], fill=h_col, width=1)
+                d.line([(11, 30), (size - 11, 30)], fill=h_col, width=1)
+
+            elif vtype == "hover":
+                # Antigravity repulsor pods with glowing magnetic coils
+                for px, py in [(6, 8), (size - 6, 8), (6, size - 8), (size - 6, size - 8)]:
+                    d.ellipse([px - 5, py - 5, px + 5, py + 5], fill=(35, 42, 58, 255), outline=(60, 210, 255, 255), width=2)
+                    d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=(140, 245, 255, 255))
+                # Hover saucer disc chassis
+                d.ellipse([6, 5, size - 6, size - 5], fill=p_col, outline=d_col, width=2)
+                # Spherical bubble canopy
+                d.ellipse([12, 10, size - 12, size - 12], fill=g_col, outline=(30, 80, 140, 255), width=1)
+                d.line([(15, 14), (23, 14)], fill=(255, 255, 255, 220), width=2)
+                # Rear energy fins
+                d.line([(size // 2 - 8, size - 7), (size // 2 + 8, size - 7)], fill=(70, 220, 255, 255), width=2)
+
+            filename = f"vehicle_{vtype}_{c_id}.png"
+            img.save(os.path.join(IMG_DIR, filename))
+
+            # Save fallback
+            if vtype == "standard" and c_id == "yellow":
+                img.save(os.path.join(IMG_DIR, "vehicle_body.png"))
+
+
+def generate_drill_sprites():
+    import settings as S
+    angles = [(0, "down"), (90, "right"), (180, "up"), (270, "left")]
+
+    for head_id in S.DRILL_HEADS.keys():
         d_img = Image.new("RGBA", (24, 24), (0, 0, 0, 0))
         dd = ImageDraw.Draw(d_img)
-        # Pointing down base template
-        drill_pts = [(5, 2), (19, 2), (12, 21)]
-        dd.polygon(drill_pts, fill=(185, 195, 205, 255), outline=(90, 100, 110, 255), width=1)
-        # Spiral grooves
-        dd.line([(7, 5), (17, 8)], fill=(120, 130, 140, 255), width=2)
-        dd.line([(8, 10), (16, 14)], fill=(120, 130, 140, 255), width=2)
-        dd.line([(10, 15), (14, 18)], fill=(120, 130, 140, 255), width=2)
-        dd.point((12, 21), fill=(255, 255, 255, 255))
 
-        rot = d_img.rotate(angle, resample=Image.BICUBIC)
-        rot.save(os.path.join(IMG_DIR, f"{name}.png"))
+        if head_id == "spiral":
+            # Conical steel spiral drill
+            drill_pts = [(5, 2), (19, 2), (12, 21)]
+            dd.polygon(drill_pts, fill=(185, 195, 205, 255), outline=(90, 100, 110, 255), width=1)
+            dd.line([(7, 5), (17, 8)], fill=(120, 130, 140, 255), width=2)
+            dd.line([(8, 10), (16, 14)], fill=(120, 130, 140, 255), width=2)
+            dd.line([(10, 15), (14, 18)], fill=(120, 130, 140, 255), width=2)
+            dd.point((12, 21), fill=(255, 255, 255, 255))
+
+        elif head_id == "diamond":
+            # Faceted diamond tungsten cutter with sharp crystal teeth
+            drill_pts = [(4, 2), (20, 2), (18, 10), (12, 22), (6, 10)]
+            dd.polygon(drill_pts, fill=(90, 210, 245, 255), outline=(30, 110, 170, 255), width=1)
+            dd.polygon([(8, 2), (16, 2), (12, 14)], fill=(185, 245, 255, 255))
+            dd.line([(12, 2), (12, 22)], fill=(255, 255, 255, 255), width=1)
+            dd.point((12, 22), fill=(255, 255, 255, 255))
+
+        elif head_id == "plasma":
+            # Dual plasma emitter prongs with superheated flame lance
+            dd.rectangle([4, 2, 7, 12], fill=(65, 70, 80, 255), outline=(35, 40, 48, 255))
+            dd.rectangle([17, 2, 20, 12], fill=(65, 70, 80, 255), outline=(35, 40, 48, 255))
+            # Blazing plasma cone
+            dd.polygon([(7, 5), (17, 5), (12, 22)], fill=(255, 95, 20, 255))
+            dd.polygon([(9, 5), (15, 5), (12, 18)], fill=(255, 225, 50, 255))
+            dd.line([(12, 6), (12, 21)], fill=(255, 255, 255, 255), width=1)
+
+        elif head_id == "vortex":
+            # Electromagnetic rotating induction coils
+            dd.ellipse([5, 2, 19, 10], outline=(190, 85, 255, 255), width=2)
+            dd.ellipse([7, 8, 17, 16], outline=(150, 50, 235, 255), width=2)
+            dd.polygon([(10, 14), (14, 14), (12, 22)], fill=(235, 170, 255, 255))
+            dd.point((12, 22), fill=(255, 255, 255, 255))
+
+        elif head_id == "seismic":
+            # Heavy pneumatic jackhammer with bronze chisel head
+            dd.rectangle([6, 2, 18, 7], fill=(85, 90, 100, 255), outline=(45, 50, 58, 255))
+            dd.rectangle([9, 7, 15, 14], fill=(195, 140, 65, 255), outline=(130, 85, 30, 255))
+            dd.polygon([(7, 14), (17, 14), (12, 22)], fill=(235, 185, 95, 255), outline=(120, 80, 25, 255))
+            dd.line([(10, 10), (14, 10)], fill=(45, 50, 58, 255), width=1)
+
+        for angle, dir_name in angles:
+            rot = d_img.rotate(angle, resample=Image.BICUBIC)
+            rot.save(os.path.join(IMG_DIR, f"drill_{head_id}_{dir_name}.png"))
+            if head_id == "spiral":
+                rot.save(os.path.join(IMG_DIR, f"drill_{dir_name}.png"))
 
 
 def generate_buildings():
@@ -509,6 +617,7 @@ def build_all_assets():
     generate_cracks()
     generate_resources()
     generate_vehicle_sprites()
+    generate_drill_sprites()
     generate_buildings()
     print("Textures generated.")
 

@@ -157,6 +157,65 @@ class ParticleSystem:
             ])
             self.particles.append(Particle(cx, cy, vx, vy, life, size, c, gravity=200.0))
 
+    def spawn_plasma_spark(self, x, y):
+        """สะเก็ดประกายไฟพลาสม่าร้อนแรงสูง (Plasma Melter)"""
+        for _ in range(4):
+            vx = self.rng.uniform(-75, 75)
+            vy = self.rng.uniform(-75, 75)
+            life = self.rng.uniform(0.18, 0.38)
+            size = self.rng.uniform(3.0, 6.0)
+            c = self.rng.choice([
+                (255, 235, 80),   # Bright yellow core
+                (255, 110, 20),   # Incandescent orange
+                (255, 50, 20),    # Fiery red
+                (255, 255, 240),  # White heat
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=-30.0))
+
+    def spawn_diamond_spark(self, x, y):
+        """ประกายเพชรและเกล็ดคริสตัลระยิบระยับ (Titanium Diamond)"""
+        for _ in range(4):
+            vx = self.rng.uniform(-65, 65)
+            vy = self.rng.uniform(-80, 20)
+            life = self.rng.uniform(0.20, 0.42)
+            size = self.rng.uniform(2.5, 5.0)
+            c = self.rng.choice([
+                (140, 240, 255),  # Cyan sparkle
+                (210, 250, 255),  # Crystal glint
+                (60, 180, 245),   # Deep blue diamond
+                (255, 255, 255),  # Bright white flash
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=120.0))
+
+    def spawn_vortex_spark(self, x, y):
+        """อนุภาคคลื่นแม่เหล็กไฟฟ้าสีม่วงนีออน (Magnetic Vortex)"""
+        for _ in range(3):
+            vx = self.rng.uniform(-60, 60)
+            vy = self.rng.uniform(-60, 60)
+            life = self.rng.uniform(0.25, 0.45)
+            size = self.rng.uniform(3.0, 5.5)
+            c = self.rng.choice([
+                (200, 95, 255),   # Neon purple
+                (240, 160, 255),  # Lavender flux
+                (120, 50, 235),   # Deep violet
+                (80, 220, 255),   # Magnetic cyan arc
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=0.0))
+
+    def spawn_seismic_shock(self, x, y):
+        """ฝุ่นและเศษหินคลื่นกระแทกสั่นสะเทือน (Seismic Hammer)"""
+        for _ in range(5):
+            vx = self.rng.uniform(-110, 110)
+            vy = self.rng.uniform(-90, 30)
+            life = self.rng.uniform(0.22, 0.45)
+            size = self.rng.uniform(3.5, 6.5)
+            c = self.rng.choice([
+                (225, 180, 110),  # Seismic sand
+                (140, 95, 55),    # Heavy earth
+                (255, 220, 140),  # Impact dust
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=180.0))
+
     def add_floating_text(self, text, x, y, color=(255, 255, 100)):
         self.floating_texts.append(FloatingText(text, x, y, color))
 
@@ -165,14 +224,13 @@ class ParticleSystem:
         self.floating_texts = [ft for ft in self.floating_texts if ft.update(dt)]
 
     def draw(self, surface, camera_y):
-        # วาด particles
+        # วาด particles เป็นทรงกลมนุ่มนวล ไร้เหลี่ยมมุม (Smooth circular particles)
         for p in self.particles:
             py_screen = p.y - camera_y + S.HUD_H
             if -10 <= py_screen <= S.SCREEN_H + 10:
-                alpha = max(0, min(255, int(255 * (p.life / p.max_life))))
                 s = max(1, int(p.size * (p.life / p.max_life)))
-                rect = pygame.Rect(int(p.x - s / 2), int(py_screen - s / 2), s, s)
-                pygame.draw.rect(surface, p.color, rect)
+                r = max(1, s // 2)
+                pygame.draw.circle(surface, p.color, (int(p.x), int(py_screen)), r)
 
         # วาด floating text
         font = _get_font()

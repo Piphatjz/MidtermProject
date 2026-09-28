@@ -148,3 +148,221 @@ END_ON_TARGET_RESOURCE = True  # สำเร็จภารกิจผสม�
 
 SAVE_FILE = "savegame.json"
 
+# ==============================================================================
+# ตัวเลือกรถขุด: สีตัวถัง, ประเภทรถขุด และประเภทหัวขุด (Garage Customization)
+# ==============================================================================
+
+# ---------- 1. สีตัวถัง (Vehicle Colors) ----------
+DEFAULT_VEHICLE_COLOR = "yellow"
+
+VEHICLE_COLORS = {
+    "yellow": {
+        "name": "เหลืองอำพัน",
+        "name_en": "Industrial Amber",
+        "primary": (245, 175, 25),
+        "dark": (180, 120, 15),
+        "highlight": (255, 220, 80),
+        "tread": (50, 52, 58),
+        "glass": (70, 170, 240),
+    },
+    "blue": {
+        "name": "ฟ้าไซเบอร์",
+        "name_en": "Cyber Cobalt",
+        "primary": (45, 140, 245),
+        "dark": (25, 80, 175),
+        "highlight": (120, 205, 255),
+        "tread": (45, 50, 62),
+        "glass": (100, 255, 240),
+    },
+    "red": {
+        "name": "แดงเพลิง",
+        "name_en": "Crimson Inferno",
+        "primary": (230, 55, 55),
+        "dark": (155, 25, 25),
+        "highlight": (255, 120, 120),
+        "tread": (48, 48, 52),
+        "glass": (255, 200, 100),
+    },
+    "green": {
+        "name": "เขียวมรกต",
+        "name_en": "Emerald Jade",
+        "primary": (45, 195, 95),
+        "dark": (25, 125, 55),
+        "highlight": (125, 245, 160),
+        "tread": (45, 52, 46),
+        "glass": (255, 240, 110),
+    },
+    "purple": {
+        "name": "ม่วงอเมทิสต์",
+        "name_en": "Neon Amethyst",
+        "primary": (175, 65, 245),
+        "dark": (110, 30, 170),
+        "highlight": (225, 145, 255),
+        "tread": (48, 45, 56),
+        "glass": (100, 230, 255),
+    },
+    "carbon": {
+        "name": "ดำคาร์บอน",
+        "name_en": "Stealth Carbon",
+        "primary": (60, 65, 75),
+        "dark": (32, 35, 42),
+        "highlight": (130, 138, 155),
+        "tread": (28, 30, 35),
+        "glass": (255, 100, 70),
+    },
+    "white": {
+        "name": "ขาวเงินหิมะ",
+        "name_en": "Arctic Platinum",
+        "primary": (230, 235, 245),
+        "dark": (160, 170, 185),
+        "highlight": (255, 255, 255),
+        "tread": (50, 55, 65),
+        "glass": (80, 190, 255),
+    },
+    "orange": {
+        "name": "ส้มเปลวสุริยัน",
+        "name_en": "Solar Flare",
+        "primary": (255, 115, 25),
+        "dark": (185, 65, 10),
+        "highlight": (255, 185, 90),
+        "tread": (52, 48, 45),
+        "glass": (90, 240, 255),
+    },
+}
+
+# ---------- 2. ประเภทรถขุด (Vehicle Types / Chassis) ----------
+DEFAULT_VEHICLE_TYPE = "standard"
+
+VEHICLE_TYPES = {
+    "standard": {
+        "name": "รถขุดมาตรฐาน (MK-1)",
+        "name_en": "Standard Excavator",
+        "tag": "สมดุลรอบด้าน",
+        "desc": "โครงสร้างมาตรฐาน สมดุลทุกความสามารถ คล่องตัวในทุกความลึก",
+        "speed_mult": 1.0,
+        "capacity_mult": 1.0,
+        "energy_add": 0.0,
+        "move_drain_mult": 1.0,
+        "grav_charge_mult": 1.0,
+        "badge_color": (245, 185, 40),
+    },
+    "scout": {
+        "name": "รถสำรวจความเร็วสูง (Swift Scout)",
+        "name_en": "Speed Buggy",
+        "tag": "ว่องไว ปราดเปรียว",
+        "desc": "ตัวถังน้ำหนักเบา เพิ่มความเร็ว +25% ประหยัดพลังงานวิ่ง -20% (ความจุถัง -20%)",
+        "speed_mult": 1.25,
+        "capacity_mult": 0.80,
+        "energy_add": 0.0,
+        "move_drain_mult": 0.80,
+        "grav_charge_mult": 1.0,
+        "badge_color": (60, 190, 255),
+    },
+    "titan": {
+        "name": "รถขุดยักษ์ไททัน (Titan Colossus)",
+        "name_en": "Heavy Hauler",
+        "tag": "บรรทุกหนัก แบตเตอรี่สูง",
+        "desc": "เกราะหนาบรรทุกหนัก เพิ่มความจุถัง +50% และพลังงาน +30 (ความเร็ว -15%)",
+        "speed_mult": 0.85,
+        "capacity_mult": 1.50,
+        "energy_add": 30.0,
+        "move_drain_mult": 1.15,
+        "grav_charge_mult": 0.90,
+        "badge_color": (255, 120, 50),
+    },
+    "hover": {
+        "name": "ยานโฮเวอร์ใต้พิภพ (Aero Hoverpod)",
+        "name_en": "Aero Drill Pod",
+        "tag": "เจ้าแห่งแรงโน้มถ่วง",
+        "desc": "ไอพ่นต้านแรงโน้มถ่วง สะสมชาร์จดิ่งเร็วกว่าเดิม 2 เท่า และลดพลังงานเจาะลงล่าง -30%",
+        "speed_mult": 1.08,
+        "capacity_mult": 0.95,
+        "energy_add": -10.0,
+        "move_drain_mult": 0.90,
+        "grav_charge_mult": 2.0,
+        "badge_color": (160, 90, 255),
+    },
+}
+
+# ---------- 3. ประเภทหัวขุด (Digging Heads & Special Abilities) ----------
+DEFAULT_DRILL_HEAD = "spiral"
+
+DRILL_HEADS = {
+    "spiral": {
+        "name": "สว่านเกลียวเหล็กกล้า",
+        "name_en": "Steel Spiral Drill",
+        "ability_name": "Standard Reliability (สมดุลรอบด้าน)",
+        "desc": "หัวสว่านเหล็กกล้ามาตรฐาน ทำงานสม่ำเสมอ ประหยัดพลังงาน ไว้วางใจได้เสมอ",
+        "power_mult": 1.0,
+        "dig_drain_mult": 1.0,
+        "can_drill_rock_always": False,
+        "rock_damage_mult": 1.0,
+        "aoe_reach": 0,
+        "bonus_sell_mult": 1.0,
+        "extra_loot_chance": 0.0,
+        "badge_color": (185, 195, 205),
+        "particle_theme": "dirt",
+    },
+    "diamond": {
+        "name": "หัวเจาะเพชรไทเทเนียม",
+        "name_en": "Titanium Rock-Crusher",
+        "ability_name": "Bedrock Breaker (ทะลวงหินผา)",
+        "desc": "เจาะทะลุหินแข็งได้ทันทีโดยไม่ต้องรออัปเกรด! ขุดหินรวดเร็วขึ้น +50%",
+        "power_mult": 1.15,
+        "dig_drain_mult": 1.0,
+        "can_drill_rock_always": True,   # เจาะหินแข็งได้ทันทีตั้งแต่เริ่ม
+        "rock_damage_mult": 1.5,
+        "aoe_reach": 0,
+        "bonus_sell_mult": 1.0,
+        "extra_loot_chance": 0.0,
+        "badge_color": (90, 220, 255),
+        "particle_theme": "diamond",
+    },
+    "plasma": {
+        "name": "หัวตัดเลเซอร์พลาสม่า",
+        "name_en": "Plasma Laser Cutter",
+        "ability_name": "Superheated Melter (หลอมละลายความร้อนสูง)",
+        "desc": "ลำแสงความร้อนสูง เพิ่มแรงเจาะทะลวงดิน +65% ขุดไวมาก (ใช้พลังงานเจาะ +20%)",
+        "power_mult": 1.65,
+        "dig_drain_mult": 1.20,
+        "can_drill_rock_always": False,
+        "rock_damage_mult": 1.25,
+        "aoe_reach": 0,
+        "bonus_sell_mult": 1.0,
+        "extra_loot_chance": 0.0,
+        "badge_color": (255, 95, 40),
+        "particle_theme": "plasma",
+    },
+    "vortex": {
+        "name": "หัวสว่านแม่เหล็กดูดแร่",
+        "name_en": "Magnetic Vortex Drill",
+        "ability_name": "Fortune Attractor (แรงดึงดูดโชคลาภ)",
+        "desc": "สนามแม่เหล็กเพิ่มเงินจากการขายแร่ +25% และเพิ่มโอกาสพบกระป๋องน้ำมัน/อัญมณีลึกลับ",
+        "power_mult": 0.95,
+        "dig_drain_mult": 0.95,
+        "can_drill_rock_always": False,
+        "rock_damage_mult": 1.0,
+        "aoe_reach": 0,
+        "bonus_sell_mult": 1.25,        # โบนัสเงินขายแร่ 25%
+        "extra_loot_chance": 0.35,      # โอกาสสุ่มเจอแร่/น้ำมันพิเศษ
+        "badge_color": (200, 110, 255),
+        "particle_theme": "vortex",
+    },
+    "seismic": {
+        "name": "หัวกระแทกคลื่นสั่นสะเทือน",
+        "name_en": "Seismic Hammer Head",
+        "ability_name": "Seismic Cleave (คลื่นกระแทกวงกว้าง)",
+        "desc": "แรงกระแทกสร้างคลื่นสั่นสะเทือน ขุดบล็อกข้างเคียงพร้อมกัน 3 บล็อกตั้งแต่ระดับเริ่มต้น",
+        "power_mult": 1.05,
+        "dig_drain_mult": 1.10,
+        "can_drill_rock_always": False,
+        "rock_damage_mult": 1.1,
+        "aoe_reach": 2,                 # กว้าง 3 บล็อก (รัศมี ±1) ทันที
+        "bonus_sell_mult": 1.0,
+        "extra_loot_chance": 0.0,
+        "badge_color": (240, 180, 80),
+        "particle_theme": "seismic",
+    },
+}
+
+

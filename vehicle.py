@@ -12,7 +12,7 @@ import assets
 
 
 class Vehicle:
-    def __init__(self, col, row):
+    def __init__(self, col, row, color_id=None, vehicle_type=None, drill_head=None):
         self.w = 40
         self.h = 40
         self.x = col * S.TILE + S.TILE / 2.0
@@ -53,7 +53,11 @@ class Vehicle:
         self.is_diving = False          # กำลังพุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วงหรือไม่
         self.dive_power = 0.0           # อัตราความแรงขณะพุ่งดิ่ง
         self._grav_sound_timer = 0.0    # จับเวลาเล่นเสียงชาร์จศักย์
-        self._dive_particle_timer = 0.0 # จับเวลาพ่นลมต้านพุ่งดิ่ง
+        self._dive_particle_timer = 0.0 # จับเวลาสร้างอนุภาคลมขณะพุ่งดิ่ง
+        # ตัวเลือกการปรับแต่งรถขุด (Customization)
+        self.color_id = color_id or getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
+        self.vehicle_type = vehicle_type or getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
+        self.drill_head = drill_head or getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
 
         self.recalc_stats()
 
@@ -73,16 +77,30 @@ class Vehicle:
         pw_lv = self.levels["power"]
         sp_lv = self.levels["speed"]
 
-        self.max_capacity = S.BASE_CAPACITY + (cap_lv - 1) * S.UPGRADES["capacity"]["step"]
-        old_max_energy = self.max_energy
-        self.max_energy = S.BASE_ENERGY + (en_lv - 1) * S.UPGRADES["energy"]["step"]
-        # เติมพลังงานส่วนที่เพิ่มขึ้นมาเมื่ออัพเกรด
-        self.energy += max(0.0, self.max_energy - old_max_energy)
-        self.power = S.BASE_POWER + (pw_lv - 1) * S.UPGRADES["power"]["step"]
-        self.speed = S.BASE_SPEED + (sp_lv - 1) * S.UPGRADES["speed"]["step"]
+        vtype_cfg = S.VEHICLE_TYPES.get(self.vehicle_type, S.VEHICLE_TYPES["standard"])
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
 
-        # ขนาดรถเพิ่มขึ้นเมื่ออัพเกรดครบทุกอย่างถึงระดับใหม่ (Tier)
-        # เมื่อทุกสเตตัสอย่างน้อย Lv.2 -> รถใหญ่ขึ้น, Lv.3 -> ใหญ่ขึ้นอีก ... จนถึง Lv.8 ตันสุด (~62px)
+        # ความจุถังคำนวณตามเลเวลและประเภทตัวถัง
+        base_cap = S.BASE_CAPACITY + (cap_lv - 1) * S.UPGRADES["capacity"]["step"]
+        self.max_capacity = max(1, int(round(base_cap * vtype_cfg.get("capacity_mult", 1.0))))
+
+        old_max_energy = getattr(self, "max_energy", S.BASE_ENERGY)
+        base_en = S.BASE_ENERGY + (en_lv - 1) * S.UPGRADES["energy"]["step"]
+        self.max_energy = max(30.0, base_en + vtype_cfg.get("energy_add", 0.0))
+        # เติมพลังงานส่วนที่เพิ่มขึ้นมาเมื่ออัพเกรด
+        if hasattr(self, "energy"):
+            self.energy += max(0.0, self.max_energy - old_max_energy)
+            self.energy = min(self.max_energy, self.energy)
+
+        # พลังเจาะคำนวณตามเลเวลและประเภทหัวขุด
+        base_pw = S.BASE_POWER + (pw_lv - 1) * S.UPGRADES["power"]["step"]
+        self.power = base_pw * head_cfg.get("power_mult", 1.0)
+
+        # ความเร็วคำนวณตามเลเวลและประเภทตัวถัง
+        base_sp = S.BASE_SPEED + (sp_lv - 1) * S.UPGRADES["speed"]["step"]
+        self.speed = base_sp * vtype_cfg.get("speed_mult", 1.0)
+
+        # ขนาดรถเพิ่มขึ้นตาม Tier
         tier = self.overall_tier()
         new_size = round(S.BASE_VEHICLE_SIZE + (tier - 1) * S.VEHICLE_SIZE_PER_TIER)
         self.w = new_size
@@ -91,12 +109,18 @@ class Vehicle:
     def drill_level(self):
         return self.levels["power"]
 
+    def can_drill_rock(self):
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
+        return head_cfg.get("can_drill_rock_always", False) or (self.drill_level() >= S.ROCK_MIN_DRILL_LEVEL)
+
     @property
     def drill_reach(self):
-        """จำนวนบล็อกที่เจาะได้กว้างขึ้นตาม Tier (ทุก 2 Tier เพิ่ม 1 บล็อก, สูงสุด 4)
-        Tier 1-2 = 1 บล็อก, Tier 3-4 = 2 บล็อก, Tier 5-6 = 3 บล็อก, Tier 7-8 = 4 บล็อก"""
+        """จำนวนบล็อกที่เจาะได้กว้างขึ้นตาม Tier หรือความสามารถของหัวขุด
+        (เช่น หัว Seismic Hammer เริ่มต้นที่รัศมี 2 บล็อก = กว้าง 3 ช่องทันที)"""
         tier = self.overall_tier()
-        return min(4, (tier + 1) // 2)
+        base_reach = min(4, (tier + 1) // 2)
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
+        return max(base_reach, head_cfg.get("aoe_reach", 0))
 
     @property
     def rect(self):
@@ -127,7 +151,9 @@ class Vehicle:
         return sum(S.RESOURCE_VALUE[t] * n for t, n in self.cargo.items())
 
     def sell_cargo(self):
-        earned = self.cargo_value()
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
+        bonus = head_cfg.get("bonus_sell_mult", 1.0)
+        earned = int(self.cargo_value() * bonus)
         self.coins += earned
         for k in self.cargo:
             self.cargo[k] = 0
@@ -186,6 +212,19 @@ class Vehicle:
         self.vibe_x = 0.0
         self.vibe_y = 0.0
 
+        # --- Safety guards: ensure all timer/physics attributes exist for saves
+        #     loaded from before these fields were added (backward compatibility)
+        if not hasattr(self, "_dive_particle_timer"): self._dive_particle_timer = 0.0
+        if not hasattr(self, "_grav_sound_timer"):    self._grav_sound_timer = 0.0
+        if not hasattr(self, "_low_energy_timer"):    self._low_energy_timer = 0.0
+        if not hasattr(self, "_smoke_timer"):         self._smoke_timer = 0.0
+        if not hasattr(self, "grav_charge"):          self.grav_charge = 0.0
+        if not hasattr(self, "is_diving"):            self.is_diving = False
+        if not hasattr(self, "dive_power"):           self.dive_power = 0.0
+        if not hasattr(self, "color_id"):             self.color_id = "yellow"
+        if not hasattr(self, "vehicle_type"):         self.vehicle_type = "standard"
+        if not hasattr(self, "drill_head"):           self.drill_head = "spiral"
+
         if self.energy <= 0:
             self.stalled = True
             self.energy = 0.0
@@ -220,7 +259,9 @@ class Vehicle:
         if dir_y < 0:
             self.is_diving = False
             self.dive_power = 0.0
-            self.grav_charge = min(S.GRAV_CHARGE_MAX, self.grav_charge + dt * S.GRAV_CHARGE_RATE)
+            vtype_cfg = S.VEHICLE_TYPES.get(self.vehicle_type, S.VEHICLE_TYPES["standard"])
+            charge_rate = S.GRAV_CHARGE_RATE * vtype_cfg.get("grav_charge_mult", 1.0)
+            self.grav_charge = min(S.GRAV_CHARGE_MAX, self.grav_charge + dt * charge_rate)
 
             # เสียงและเอฟเฟกต์ประจุไอพ่นต้านแรงโน้มถ่วง
             self._grav_sound_timer += dt
@@ -351,7 +392,9 @@ class Vehicle:
 
         # ลดพลังงานเมื่อวิ่ง (เมื่อพุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วง ไม่ต้องใช้พลังงานเครื่องยนต์!)
         if self.is_moving and not self.is_diving:
-            self.energy = max(0.0, self.energy - S.BASE_ENERGY_DRAIN_MOVE * dt)
+            vtype_cfg = S.VEHICLE_TYPES.get(self.vehicle_type, S.VEHICLE_TYPES["standard"])
+            move_drain = S.BASE_ENERGY_DRAIN_MOVE * vtype_cfg.get("move_drain_mult", 1.0)
+            self.energy = max(0.0, self.energy - move_drain * dt)
             self._smoke_timer += dt
             if particle_system and self._smoke_timer >= 0.12:
                 bx = self.x - self.facing[0] * half_w
@@ -365,7 +408,7 @@ class Vehicle:
 
     # ------------------------------------------------------------------
     def _handle_drilling(self, col, row, world, dt, particle_system):
-        """เจาะบล็อกหลัก + บล็อกข้าง ๆ ตาม drill_reach (Tier-based)
+        """เจาะบล็อกหลัก + บล็อกข้าง ๆ ตาม drill_reach (Tier-based และความสามารถของหัวขุด)
         - เคลื่อนที่แนวนอน (ซ้าย/ขวา) → เจาะบล็อกบน/ล่างเพิ่มด้วย
         - เคลื่อนที่แนวตั้ง (ขึ้น/ลง)  → เจาะบล็อกซ้าย/ขวาเพิ่มด้วย
         reach 1 = 1 บล็อก, reach 2 = 3 บล็อก (±1), reach 3 = 5 บล็อก, reach 4 = 7 บล็อก"""
@@ -373,8 +416,11 @@ class Vehicle:
         tile_type = world.get_tile(col, row)
         is_rock = (tile_type == S.T_ROCK)
 
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
+        can_mine_rock = head_cfg.get("can_drill_rock_always", False) or (self.drill_level() >= S.ROCK_MIN_DRILL_LEVEL)
+
         # เช็คว่าหินแข็งเกินกว่าหัวขุดปัจจุบันหรือไม่
-        if is_rock and self.drill_level() < S.ROCK_MIN_DRILL_LEVEL:
+        if is_rock and not can_mine_rock:
             self.is_drilling = False
             # กระแทกหินแล้วขุดไม่เข้า มีเสียงกระทบ
             self._drill_sound_timer += dt
@@ -384,7 +430,11 @@ class Vehicle:
             return
 
         self.is_drilling = True
-        self.energy = max(0.0, self.energy - S.BASE_ENERGY_DRAIN_DIG * dt)
+        dig_drain = S.BASE_ENERGY_DRAIN_DIG * head_cfg.get("dig_drain_mult", 1.0)
+        # โบนัสยาน Aero Hoverpod: ขุดดิ่งลงล่างประหยัดพลังงานลง 30%
+        if self.vehicle_type == "hover" and self.facing == (0, 1):
+            dig_drain *= 0.70
+        self.energy = max(0.0, self.energy - dig_drain * dt)
 
         # สั่นสะเทือนตอนเจาะ (Juice)
         self.vibe_x = (random.random() * 2.0 - 1.0) * 1.5
@@ -396,11 +446,21 @@ class Vehicle:
             assets.play_sound("drill", volume=0.55)
             self._drill_sound_timer = 0.0
 
-        # เสกเศษดิน/เศษหินกระจาย
+        # เสกเศษดิน/เศษหิน/เอฟเฟกต์ตามชนิดหัวขุด
         if particle_system and random.random() < 0.65:
             fx = self.x + self.facing[0] * (self.w / 2.0 + 4)
             fy = self.y + self.facing[1] * (self.h / 2.0 + 4)
-            particle_system.spawn_dig_debris(fx, fy, is_rock=is_rock)
+            theme = head_cfg.get("particle_theme", "dirt")
+            if theme == "plasma":
+                particle_system.spawn_plasma_spark(fx, fy)
+            elif theme == "diamond":
+                particle_system.spawn_diamond_spark(fx, fy)
+            elif theme == "vortex":
+                particle_system.spawn_vortex_spark(fx, fy)
+            elif theme == "seismic":
+                particle_system.spawn_seismic_shock(fx, fy)
+            else:
+                particle_system.spawn_dig_debris(fx, fy, is_rock=is_rock)
 
         # ทำความเสียหายต่อบล็อก (เมื่อพุ่งดิ่งชนบล็อกด้านล่างตามแรงโน้มถ่วง พลังเจาะจะแรงขึ้นหลายเท่า Ground Slam!)
         drill_mult = 1.0
@@ -418,13 +478,16 @@ class Vehicle:
             self.grav_charge = max(0.0, self.grav_charge - dt * 2.2)
 
         damage_amount = self.power * drill_mult * dt
+        if is_rock:
+            damage_amount *= head_cfg.get("rock_damage_mult", 1.0)
+
         dug_through = world.damage_tile(col, row, damage_amount)
 
         if dug_through:
             self._on_block_dug(col, row, world, particle_system, is_rock)
             self.drilling_target = None
 
-        # ---- Drill Reach: เจาะบล็อกข้าง ๆ ตาม Tier ----
+        # ---- Drill Reach: เจาะบล็อกข้าง ๆ ตาม Tier และชนิดหัวขุด ----
         reach = self.drill_reach  # 1..4
         if reach > 1:
             # ทิศที่เคลื่อนที่แนวนอน (left/right) → เจาะบล็อกบน/ล่างของเป้าหมาย
@@ -436,8 +499,8 @@ class Vehicle:
                 perp_axis = "x"  # เคลื่อนที่แนวตั้ง → เจาะแนวนอน
 
             # สร้างรายการ offset (-reach+1 .. reach-1, ไม่รวม 0 ซึ่งเป็นบล็อกหลัก)
-            half = reach - 1  # reach=2 → half=1 → offset ±1
-            side_damage = damage_amount  # บล็อกข้างได้รับความเสียหายเท่ากับบล็อกหลัก (แตกพร้อมกัน)
+            half = reach - 1
+            side_damage = damage_amount
             for off in range(-half, half + 1):
                 if off == 0:
                     continue
@@ -449,10 +512,13 @@ class Vehicle:
                 if world.is_solid(sc, sr):
                     side_tile = world.get_tile(sc, sr)
                     side_is_rock = (side_tile == S.T_ROCK)
-                    # หินข้างก็ต้องเช็ค drill_level ด้วย
-                    if side_is_rock and self.drill_level() < S.ROCK_MIN_DRILL_LEVEL:
+                    side_can_mine = head_cfg.get("can_drill_rock_always", False) or (self.drill_level() >= S.ROCK_MIN_DRILL_LEVEL)
+                    if side_is_rock and not side_can_mine:
                         continue
-                    side_dug = world.damage_tile(sc, sr, side_damage)
+                    side_dmg = side_damage
+                    if side_is_rock:
+                        side_dmg *= head_cfg.get("rock_damage_mult", 1.0)
+                    side_dug = world.damage_tile(sc, sr, side_dmg)
                     if side_dug:
                         self._on_block_dug(sc, sr, world, particle_system, side_is_rock)
 
@@ -466,6 +532,8 @@ class Vehicle:
             particle_system.spawn_block_break(t_cx, t_cy, is_rock=is_rock)
 
         res = world.collect_resource(col, row)
+        head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
+
         if res == S.RES_FUEL:
             # กระป๋องน้ำมัน: เติมพลังงานทันที ไม่ต้องเก็บในถัง
             restore = min(S.FUEL_CANISTER_RESTORE, self.max_energy - self.energy)
@@ -475,7 +543,7 @@ class Vehicle:
                 self.on_resource_collected(S.RES_FUEL)
             if particle_system:
                 particle_system.add_floating_text(
-                    f"⛽ +{int(restore)} พลังงาน!", t_cx, t_cy, (255, 210, 60)
+                    f"+{int(restore)} พลังงาน!", t_cx, t_cy, (255, 210, 60)
                 )
         elif res != S.RES_NONE:
             if self.add_cargo(res):
@@ -499,6 +567,21 @@ class Vehicle:
                 # ถังเต็ม เก็บไม่ได้
                 if particle_system:
                     particle_system.add_floating_text("ถังเต็ม!", t_cx, t_cy, (255, 80, 80))
+        elif res == S.RES_NONE and head_cfg.get("extra_loot_chance", 0.0) > 0:
+            # หัวขุดแม่เหล็ก (Magnetic Vortex): โอกาสดูดแร่หรือพลังงานพิเศษขึ้นมาจากชั้นดินว่าง
+            if random.random() < head_cfg["extra_loot_chance"] * 0.12:
+                bonus_res = random.choice([S.RES_COIN, S.RES_COIN, S.RES_GOLD, S.RES_FUEL])
+                if bonus_res == S.RES_FUEL:
+                    self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
+                    if particle_system:
+                        particle_system.add_floating_text("🧲 แรงดึงดูด: +เชื้อเพลิง!", t_cx, t_cy - 16, (255, 210, 60))
+                else:
+                    if self.add_cargo(bonus_res):
+                        if self.on_resource_collected:
+                            self.on_resource_collected(bonus_res)
+                        bname = S.RESOURCE_NAME.get(bonus_res, "แร่")
+                        if particle_system:
+                            particle_system.add_floating_text(f"🧲 ดูดแร่พิเศษ! +1 {bname}", t_cx, t_cy - 16, (210, 130, 255))
 
     # ------------------------------------------------------------------
     def to_dict(self):
@@ -509,12 +592,18 @@ class Vehicle:
             "cargo": {str(k): v for k, v in self.cargo.items()},
             "cargo_count": self.cargo_count,
             "coins": self.coins,
+            "color_id": self.color_id,
+            "vehicle_type": self.vehicle_type,
+            "drill_head": self.drill_head,
         }
 
     def load_dict(self, data):
         self.x = data["x"]
         self.y = data["y"]
         self.levels = {k: int(v) for k, v in data["levels"].items()}
+        self.color_id = data.get("color_id", getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow"))
+        self.vehicle_type = data.get("vehicle_type", getattr(S, "DEFAULT_VEHICLE_TYPE", "standard"))
+        self.drill_head = data.get("drill_head", getattr(S, "DEFAULT_DRILL_HEAD", "spiral"))
         self.recalc_stats()
         self.energy = data["energy"]
         self.cargo = {int(k): v for k, v in data["cargo"].items()}
@@ -523,3 +612,4 @@ class Vehicle:
         self.grav_charge = 0.0
         self.is_diving = False
         self.dive_power = 0.0
+

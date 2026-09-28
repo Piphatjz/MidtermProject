@@ -21,6 +21,7 @@ CONTRACT = "contract"
 PLAYING = "playing"
 PAUSED = "paused"
 SHOP = "shop"
+GARAGE = "garage"
 GAME_OVER = "game_over"
 VICTORY = "victory"
 
@@ -45,12 +46,20 @@ class Game:
         # สำหรับแปลง mouse coordinates เมื่ออยู่ในโหมด fullscreen scaled
         self.display_scale = 1.0
         self.display_offset = (0, 0)
+        # ตัวแปรระบบอู่แต่งรถขุด (Garage & Customization)
+        self.garage_tab = "color"
+        self.previous_state = MENU
         assets.init()
 
     # ------------------------------------------------------------------
     def new_game(self, mission=None):
+        prev_color = self.vehicle.color_id if self.vehicle else getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
+        prev_type = self.vehicle.vehicle_type if self.vehicle else getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
+        prev_drill = self.vehicle.drill_head if self.vehicle else getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
+
         self.world = World()
-        self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
+        self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1,
+                               color_id=prev_color, vehicle_type=prev_type, drill_head=prev_drill)
         self.vehicle.on_resource_collected = self._on_resource_collected
         self.vehicle.on_dive_performed = self._on_dive_performed
         self.particles.clear()
@@ -102,7 +111,7 @@ class Game:
             self.mission.add_mined_resource(res)
             for key, label, is_met, cur, tgt, prog_txt in self.mission.get_goals_status():
                 if is_met and cur == tgt:
-                    self._toast(f"🎯 สำเร็จเงื่อนไข: {label}!")
+                    self._toast(f"[!] สำเร็จเงื่อนไข: {label}!")
                     break
 
     def _on_dive_performed(self):
@@ -110,7 +119,7 @@ class Game:
             self.mission.add_dive()
             for key, label, is_met, cur, tgt, prog_txt in self.mission.get_goals_status():
                 if key == "dives" and is_met and cur == tgt:
-                    self._toast(f"🎯 สำเร็จเงื่อนไข: {label}!")
+                    self._toast(f"[!] สำเร็จเงื่อนไข: {label}!")
 
     # ------------------------------------------------------------------
     def _to_game_pos(self, screen_pos):
@@ -153,6 +162,11 @@ class Game:
                         if key == "new":
                             self.contract_options = missions.get_three_contract_options()
                             self.state = CONTRACT
+                        elif key == "garage":
+                            if self.vehicle is None:
+                                self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
+                            self.previous_state = MENU
+                            self.state = GARAGE
                         elif key == "continue":
                             self.load_game()
                         elif key == "quit":
@@ -177,8 +191,58 @@ class Game:
                             self.new_game(missions.get_random_mission())
                         elif key == "reroll":
                             self.contract_options = missions.get_three_contract_options()
+                        elif key == "garage":
+                            if self.vehicle is None:
+                                self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
+                            self.previous_state = CONTRACT
+                            self.state = GARAGE
                         elif key == "back":
                             self.state = MENU
+            return
+
+        if self.state == GARAGE:
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_e):
+                if self.vehicle:
+                    self.vehicle.recalc_stats()
+                self.state = self.previous_state
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "tab_color":
+                            self.garage_tab = "color"
+                        elif key == "tab_type":
+                            self.garage_tab = "type"
+                        elif key == "tab_drill":
+                            self.garage_tab = "drill"
+                        elif key.startswith("color_"):
+                            cid = key[len("color_"):]
+                            if self.vehicle:
+                                self.vehicle.color_id = cid
+                                cname = S.VEHICLE_COLORS.get(cid, {}).get("name", cid)
+                                self._toast(f"เลือกสี: {cname}")
+                                assets.play_sound("click", volume=0.6)
+                        elif key.startswith("type_"):
+                            vtid = key[len("type_"):]
+                            if self.vehicle:
+                                self.vehicle.vehicle_type = vtid
+                                self.vehicle.recalc_stats()
+                                tname = S.VEHICLE_TYPES.get(vtid, {}).get("name", vtid)
+                                self._toast(f"เลือกตัวถัง: {tname}")
+                                assets.play_sound("upgrade", volume=0.7)
+                        elif key.startswith("drill_"):
+                            dhid = key[len("drill_"):]
+                            if self.vehicle:
+                                self.vehicle.drill_head = dhid
+                                self.vehicle.recalc_stats()
+                                dname = S.DRILL_HEADS.get(dhid, {}).get("name", dhid)
+                                self._toast(f"ติดตั้งหัวขุด: {dname}")
+                                assets.play_sound("upgrade", volume=0.7)
+                        elif key in ("apply", "back"):
+                            if self.vehicle:
+                                self.vehicle.recalc_stats()
+                            self.state = self.previous_state
+                            assets.play_sound("click", volume=0.6)
             return
 
         if event.type == pygame.KEYDOWN:
@@ -218,6 +282,9 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "close":
                             self.state = PLAYING
+                        elif key == "tab_garage":
+                            self.previous_state = SHOP
+                            self.state = GARAGE
                         else:
                             self.vehicle.do_upgrade(key)
             elif self.state in (GAME_OVER, VICTORY):
@@ -335,6 +402,22 @@ class Game:
             self.buttons = ui.draw_contract_menu(self.screen, self.contract_options, mouse_pos)
             return
 
+        if self.state == GARAGE:
+            if self.previous_state in (MENU, CONTRACT) or self.world is None:
+                ui.draw_main_menu(self.screen, False, mouse_pos)
+            else:
+                ui.draw_sky_and_bg(self.screen, self.camera_y)
+                ui.draw_world(self.screen, self.world, self.camera_y)
+                ui.draw_home_and_shop(self.screen, self.camera_y)
+                ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
+                depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+                ui.draw_hud(self.screen, self.vehicle, depth, self.mission)
+            if self.vehicle is None:
+                self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
+            self.buttons = ui.draw_garage_menu(self.screen, self.vehicle, mouse_pos, active_tab=self.garage_tab)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer)
+            return
+
         # วาดฉากเกม
         ui.draw_sky_and_bg(self.screen, self.camera_y)
         ui.draw_world(self.screen, self.world, self.camera_y)
@@ -353,11 +436,13 @@ class Game:
         ui.draw_hud(self.screen, self.vehicle, depth, self.mission)
 
         # แสดงข้อความคำใบ้ (Hint)
+        diamond_bypass = getattr(self.vehicle, "drill_head", "") == "diamond"
         blocked_by_rock = (
             self.state == PLAYING
             and self.vehicle.drilling_target is not None
             and not self.vehicle.is_drilling
             and not self.vehicle.stalled
+            and not diamond_bypass
         )
         if self.state == PLAYING and self.vehicle.rect.colliderect(self.shop_zone()):
             ui.draw_hint(self.screen, "กด E เพื่อเปิดร้านอัพเกรด")

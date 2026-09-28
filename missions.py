@@ -11,21 +11,24 @@ import settings as S
 DIFFICULTIES = {
     "easy": {
         "name": "ง่าย",
-        "badge": "🟢 ง่าย",
+        "badge": "ง่าย",
+        "dot_color": (90, 220, 120),
         "color": (90, 220, 120),
         "bg_color": (22, 38, 28),
         "border_color": (55, 160, 85),
     },
     "medium": {
         "name": "ปานกลาง",
-        "badge": "🟡 ปานกลาง",
+        "badge": "ปานกลาง",
+        "dot_color": (255, 205, 60),
         "color": (255, 205, 60),
         "bg_color": (38, 34, 22),
         "border_color": (190, 150, 45),
     },
     "hard": {
         "name": "ยาก",
-        "badge": "🔴 ยาก",
+        "badge": "ยาก",
+        "dot_color": (255, 95, 110),
         "color": (255, 95, 110),
         "bg_color": (38, 22, 26),
         "border_color": (190, 55, 75),
