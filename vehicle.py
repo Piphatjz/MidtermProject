@@ -9,6 +9,7 @@ import random
 import pygame
 import settings as S
 import assets
+import save_manager as SM
 
 
 class Vehicle:
@@ -58,6 +59,16 @@ class Vehicle:
         self.color_id = color_id or getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
         self.vehicle_type = vehicle_type or getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
         self.drill_head = drill_head or getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
+
+        # ระบบเหรียญตราภารกิจกองกลางรวม (Global Mission Token System)
+        prof = SM.load_profile()
+        self.tokens = prof.get('tokens', getattr(S, 'DEFAULT_TOKENS', 0))
+        # รายการไอเทมที่ปลดล็อคแล้ว (ถาวรระดับบัญชี)
+        self.unlocked_colors = set(prof.get('unlocked_colors', ['yellow', 'blue', 'red', 'green']))
+        self.unlocked_chassis = set(prof.get('unlocked_chassis', ['standard']))
+        self.unlocked_drills = set(prof.get('unlocked_drills', ['spiral']))
+        self.tech_drone = prof.get('tech_drone', False)
+        self.tech_radio = prof.get('tech_radio', False)
 
         self.recalc_stats()
 
@@ -186,6 +197,89 @@ class Vehicle:
         return True
 
     # ------------------------------------------------------------------
+    # ระบบ Token: ปลดล็อคและซื้อฟีเจอร์
+    def add_tokens(self, amount):
+        """รับ Token เพิ่ม (จากภารกิจสำเร็จ)"""
+        self.tokens += amount
+
+    def can_unlock(self, token_cost):
+        """ตรวจสอบว่ามี Token เพียงพอสำหรับการปลดล็อคหรือไม่"""
+        return self.tokens >= token_cost
+
+    def try_unlock_color(self, color_id):
+        """ลองปลดล็อคสีตัวถัง ถ้ามี Token พอ คืนค่า True ถ้าสำเร็จ"""
+        if color_id in self.unlocked_colors:
+            return True   # ปลดล็อคแล้ว ไม่ต้องเสีย Token
+        cost = S.VEHICLE_COLORS.get(color_id, {}).get('token_cost', 0)
+        if cost == 0:
+            self.unlocked_colors.add(color_id)
+            return True
+        if self.tokens >= cost:
+            self.tokens -= cost
+            self.unlocked_colors.add(color_id)
+            return True
+        return False
+
+    def try_unlock_chassis(self, chassis_id):
+        """ลองปลดล็อคตัวถัง ถ้ามี Token พอ คืนค่า True ถ้าสำเร็จ"""
+        if chassis_id in self.unlocked_chassis:
+            return True
+        cost = S.VEHICLE_TYPES.get(chassis_id, {}).get('token_cost', 0)
+        if cost == 0:
+            self.unlocked_chassis.add(chassis_id)
+            return True
+        if self.tokens >= cost:
+            self.tokens -= cost
+            self.unlocked_chassis.add(chassis_id)
+            return True
+        return False
+
+    def try_unlock_drill(self, drill_id):
+        """ลองปลดล็อคหัวขุด ถ้ามี Token พอ คืนค่า True ถ้าสำเร็จ"""
+        if drill_id in self.unlocked_drills:
+            return True
+        cost = S.DRILL_HEADS.get(drill_id, {}).get('token_cost', 0)
+        if cost == 0:
+            self.unlocked_drills.add(drill_id)
+            return True
+        if self.tokens >= cost:
+            self.tokens -= cost
+            self.unlocked_drills.add(drill_id)
+            return True
+        return False
+
+    def try_unlock_drone(self):
+        """ลองปลดล็อคโดรนขนส่ง ถ้ามี Token พอ คืนค่า True ถ้าสำเร็จ"""
+        if self.tech_drone:
+            return True
+        cost = getattr(S, 'TECH_DRONE_TOKEN_COST', 3)
+        if self.tokens >= cost:
+            self.tokens -= cost
+            self.tech_drone = True
+            return True
+        return False
+
+    def try_unlock_radio(self):
+        """ลองปลดล็อควิทยุร้านค้า ถ้ามี Token พอ คืนค่า True ถ้าสำเร็จ"""
+        if self.tech_radio:
+            return True
+        cost = getattr(S, 'TECH_RADIO_TOKEN_COST', 2)
+        if self.tokens >= cost:
+            self.tokens -= cost
+            self.tech_radio = True
+            return True
+        return False
+
+    def is_color_unlocked(self, color_id):
+        return color_id in self.unlocked_colors
+
+    def is_chassis_unlocked(self, chassis_id):
+        return chassis_id in self.unlocked_chassis
+
+    def is_drill_unlocked(self, drill_id):
+        return drill_id in self.unlocked_drills
+
+    # ------------------------------------------------------------------
     def _resolve_input_direction(self, raw_input):
         """แปลง input ให้เป็นทิศทางหลักแกนเดียวอย่างสเถียร ไร้การสั่นไหว"""
         dx, dy = raw_input
@@ -224,6 +318,12 @@ class Vehicle:
         if not hasattr(self, "color_id"):             self.color_id = "yellow"
         if not hasattr(self, "vehicle_type"):         self.vehicle_type = "standard"
         if not hasattr(self, "drill_head"):           self.drill_head = "spiral"
+        if not hasattr(self, 'tokens'):          self.tokens = 0
+        if not hasattr(self, 'unlocked_colors'): self.unlocked_colors = set(['yellow','blue','red','green'])
+        if not hasattr(self, 'unlocked_chassis'): self.unlocked_chassis = set(['standard'])
+        if not hasattr(self, 'unlocked_drills'): self.unlocked_drills = set(['spiral'])
+        if not hasattr(self, 'tech_drone'):      self.tech_drone = False
+        if not hasattr(self, 'tech_radio'):      self.tech_radio = False
 
         if self.energy <= 0:
             self.stalled = True
@@ -480,7 +580,7 @@ class Vehicle:
             self.vibe_y = (random.random() * 2.0 - 1.0) * 3.5 * self.dive_power
             if particle_system and self.dive_power > 0.2:
                 particle_system.spawn_ground_slam_shockwave(self.x, row * S.TILE)
-                particle_system.add_floating_text(f"💥 GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
+                particle_system.add_floating_text(f"[SLAM] GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
                 if self.on_dive_performed:
                     self.on_dive_performed()
             # สลายพลังงานศักย์ลงเมื่อกระแทกพื้น
@@ -583,14 +683,14 @@ class Vehicle:
                 if bonus_res == S.RES_FUEL:
                     self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
                     if particle_system:
-                        particle_system.add_floating_text("🧲 แรงดึงดูด: +เชื้อเพลิง!", t_cx, t_cy - 16, (255, 210, 60))
+                        particle_system.add_floating_text("[+] แรงดึงดูด: +เชื้อเพลิง!", t_cx, t_cy - 16, (255, 210, 60))
                 else:
                     if self.add_cargo(bonus_res):
                         if self.on_resource_collected:
                             self.on_resource_collected(bonus_res)
                         bname = S.RESOURCE_NAME.get(bonus_res, "แร่")
                         if particle_system:
-                            particle_system.add_floating_text(f"🧲 ดูดแร่พิเศษ! +1 {bname}", t_cx, t_cy - 16, (210, 130, 255))
+                            particle_system.add_floating_text(f"[+] ดูดแร่พิเศษ! +1 {bname}", t_cx, t_cy - 16, (210, 130, 255))
 
     # ------------------------------------------------------------------
     def to_dict(self):
@@ -604,6 +704,12 @@ class Vehicle:
             "color_id": self.color_id,
             "vehicle_type": self.vehicle_type,
             "drill_head": self.drill_head,
+            'tokens': self.tokens,
+            'unlocked_colors': list(self.unlocked_colors),
+            'unlocked_chassis': list(self.unlocked_chassis),
+            'unlocked_drills': list(self.unlocked_drills),
+            'tech_drone': self.tech_drone,
+            'tech_radio': self.tech_radio,
         }
 
     def load_dict(self, data):
@@ -618,6 +724,12 @@ class Vehicle:
         self.cargo = {int(k): v for k, v in data["cargo"].items()}
         self.cargo_count = data["cargo_count"]
         self.coins = data["coins"]
+        self.tokens = data.get('tokens', 0)
+        self.unlocked_colors = set(data.get('unlocked_colors', ['yellow', 'blue', 'red', 'green']))
+        self.unlocked_chassis = set(data.get('unlocked_chassis', ['standard']))
+        self.unlocked_drills = set(data.get('unlocked_drills', ['spiral']))
+        self.tech_drone = data.get('tech_drone', False)
+        self.tech_radio = data.get('tech_radio', False)
         self.grav_charge = 0.0
         self.is_diving = False
         self.dive_power = 0.0

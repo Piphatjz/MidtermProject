@@ -67,6 +67,15 @@ def is_muted():
     return not _SOUND_ENABLED
 
 
+def set_muted(muted):
+    """กำหนดสถานะเปิด/ปิดเสียงทั้งหมดโดยตรง"""
+    global _SOUND_ENABLED
+    _SOUND_ENABLED = not bool(muted)
+    if pygame.mixer.get_init():
+        vol = 0.0 if not _SOUND_ENABLED else 1.0
+        pygame.mixer.music.set_volume(vol)
+
+
 def play_sound(name, volume=1.0, cooldown=0.06):
     """เล่นเสียงเอฟเฟกต์ มี cooldown ป้องกันเสียงเล่นซ้อนกันถี่เกินไป"""
     global _SOUND_ENABLED

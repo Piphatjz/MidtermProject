@@ -246,6 +246,12 @@ SAVE_FILE = "savegame.json"
 # ตัวเลือกรถขุด: สีตัวถัง, ประเภทรถขุด และประเภทหัวขุด (Garage Customization)
 # ==============================================================================
 
+# ---------- ระบบเหรียญตราภารกิจ (Mission Tokens & Unlock System) ----------
+DEFAULT_TOKENS = 0
+TECH_DRONE_TOKEN_COST = 3       # ราคา Token สำหรับปลดล็อคใบอนุญาตโดรนขนส่งสินค้า (Cargo Drone License)
+TECH_RADIO_TOKEN_COST = 2       # ราคา Token สำหรับปลดล็อควิทยุสื่อสารร้านค้าใต้ดิน (Radio Transceiver)
+CLASSIC_FLOOR_TOKEN_REWARD = 2  # Token ที่ได้รับทุกครั้งที่ปลดล็อคชั้นความลึกใหม่ในโหมดคลาสสิก
+
 # ---------- 1. สีตัวถัง (Vehicle Colors) ----------
 DEFAULT_VEHICLE_COLOR = "yellow"
 
@@ -253,6 +259,7 @@ VEHICLE_COLORS = {
     "yellow": {
         "name": "เหลืองอำพัน",
         "name_en": "Industrial Amber",
+        "token_cost": 0,
         "primary": (245, 175, 25),
         "dark": (180, 120, 15),
         "highlight": (255, 220, 80),
@@ -262,6 +269,7 @@ VEHICLE_COLORS = {
     "blue": {
         "name": "ฟ้าไซเบอร์",
         "name_en": "Cyber Cobalt",
+        "token_cost": 0,
         "primary": (45, 140, 245),
         "dark": (25, 80, 175),
         "highlight": (120, 205, 255),
@@ -271,6 +279,7 @@ VEHICLE_COLORS = {
     "red": {
         "name": "แดงเพลิง",
         "name_en": "Crimson Inferno",
+        "token_cost": 0,
         "primary": (230, 55, 55),
         "dark": (155, 25, 25),
         "highlight": (255, 120, 120),
@@ -280,6 +289,7 @@ VEHICLE_COLORS = {
     "green": {
         "name": "เขียวมรกต",
         "name_en": "Emerald Jade",
+        "token_cost": 0,
         "primary": (45, 195, 95),
         "dark": (25, 125, 55),
         "highlight": (125, 245, 160),
@@ -289,6 +299,7 @@ VEHICLE_COLORS = {
     "purple": {
         "name": "ม่วงอเมทิสต์",
         "name_en": "Neon Amethyst",
+        "token_cost": 1,
         "primary": (175, 65, 245),
         "dark": (110, 30, 170),
         "highlight": (225, 145, 255),
@@ -298,6 +309,7 @@ VEHICLE_COLORS = {
     "carbon": {
         "name": "ดำคาร์บอน",
         "name_en": "Stealth Carbon",
+        "token_cost": 1,
         "primary": (60, 65, 75),
         "dark": (32, 35, 42),
         "highlight": (130, 138, 155),
@@ -307,6 +319,7 @@ VEHICLE_COLORS = {
     "white": {
         "name": "ขาวเงินหิมะ",
         "name_en": "Arctic Platinum",
+        "token_cost": 1,
         "primary": (230, 235, 245),
         "dark": (160, 170, 185),
         "highlight": (255, 255, 255),
@@ -316,6 +329,7 @@ VEHICLE_COLORS = {
     "orange": {
         "name": "ส้มเปลวสุริยัน",
         "name_en": "Solar Flare",
+        "token_cost": 1,
         "primary": (255, 115, 25),
         "dark": (185, 65, 10),
         "highlight": (255, 185, 90),
@@ -332,6 +346,7 @@ VEHICLE_TYPES = {
         "name": "รถขุดมาตรฐาน (MK-1)",
         "name_en": "Standard Excavator",
         "tag": "สมดุลรอบด้าน",
+        "token_cost": 0,
         "desc": "โครงสร้างมาตรฐาน สมดุลทุกความสามารถ คล่องตัวในทุกความลึก",
         "speed_mult": 1.0,
         "capacity_mult": 1.0,
@@ -344,6 +359,7 @@ VEHICLE_TYPES = {
         "name": "รถสำรวจความเร็วสูง (Swift Scout)",
         "name_en": "Speed Buggy",
         "tag": "ว่องไว ปราดเปรียว",
+        "token_cost": 3,
         "desc": "ตัวถังน้ำหนักเบา เพิ่มความเร็ว +25% ประหยัดพลังงานวิ่ง -20% (ความจุถัง -20%)",
         "speed_mult": 1.25,
         "capacity_mult": 0.80,
@@ -356,6 +372,7 @@ VEHICLE_TYPES = {
         "name": "รถขุดยักษ์ไททัน (Titan Colossus)",
         "name_en": "Heavy Hauler",
         "tag": "บรรทุกหนัก แบตเตอรี่สูง",
+        "token_cost": 5,
         "desc": "เกราะหนาบรรทุกหนัก เพิ่มความจุถัง +50% และพลังงาน +30 (ความเร็ว -15%)",
         "speed_mult": 0.85,
         "capacity_mult": 1.50,
@@ -368,6 +385,7 @@ VEHICLE_TYPES = {
         "name": "ยานโฮเวอร์ใต้พิภพ (Aero Hoverpod)",
         "name_en": "Aero Drill Pod",
         "tag": "เจ้าแห่งแรงโน้มถ่วง",
+        "token_cost": 7,
         "desc": "ไอพ่นต้านแรงโน้มถ่วง สะสมชาร์จดิ่งเร็วกว่าเดิม 2 เท่า และลดพลังงานเจาะลงล่าง -30%",
         "speed_mult": 1.08,
         "capacity_mult": 0.95,
@@ -386,6 +404,7 @@ DRILL_HEADS = {
         "name": "สว่านเกลียวเหล็กกล้า",
         "name_en": "Steel Spiral Drill",
         "ability_name": "Standard Reliability (สมดุลรอบด้าน)",
+        "token_cost": 0,
         "desc": "หัวสว่านเหล็กกล้ามาตรฐาน ทำงานสม่ำเสมอ ประหยัดพลังงาน ไว้วางใจได้เสมอ",
         "power_mult": 1.0,
         "dig_drain_mult": 1.0,
@@ -401,6 +420,7 @@ DRILL_HEADS = {
         "name": "หัวเจาะเพชรไทเทเนียม",
         "name_en": "Titanium Rock-Crusher",
         "ability_name": "Bedrock Breaker (ทะลวงหินผา)",
+        "token_cost": 4,
         "desc": "เจาะทะลุหินแข็งได้ทันทีโดยไม่ต้องรออัปเกรด! ขุดหินรวดเร็วขึ้น +50%",
         "power_mult": 1.15,
         "dig_drain_mult": 1.0,
@@ -416,6 +436,7 @@ DRILL_HEADS = {
         "name": "หัวตัดเลเซอร์พลาสม่า",
         "name_en": "Plasma Laser Cutter",
         "ability_name": "Superheated Melter (หลอมละลายความร้อนสูง)",
+        "token_cost": 3,
         "desc": "ลำแสงความร้อนสูง เพิ่มแรงเจาะทะลวงดิน +65% ขุดไวมาก (ใช้พลังงานเจาะ +20%)",
         "power_mult": 1.65,
         "dig_drain_mult": 1.20,
@@ -431,6 +452,7 @@ DRILL_HEADS = {
         "name": "หัวสว่านแม่เหล็กดูดแร่",
         "name_en": "Magnetic Vortex Drill",
         "ability_name": "Fortune Attractor (แรงดึงดูดโชคลาภ)",
+        "token_cost": 5,
         "desc": "สนามแม่เหล็กเพิ่มเงินจากการขายแร่ +25% และเพิ่มโอกาสพบกระป๋องน้ำมัน/อัญมณีลึกลับ",
         "power_mult": 0.95,
         "dig_drain_mult": 0.95,
@@ -446,6 +468,7 @@ DRILL_HEADS = {
         "name": "หัวกระแทกคลื่นสั่นสะเทือน",
         "name_en": "Seismic Hammer Head",
         "ability_name": "Seismic Cleave (คลื่นกระแทกวงกว้าง)",
+        "token_cost": 6,
         "desc": "แรงกระแทกสร้างคลื่นสั่นสะเทือน ขุดบล็อกข้างเคียงพร้อมกัน 3 บล็อกตั้งแต่ระดับเริ่มต้น",
         "power_mult": 1.05,
         "dig_drain_mult": 1.10,
