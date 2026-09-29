@@ -5,7 +5,6 @@ game.py
 MENU, CONTRACT, PLAYING, PAUSED, SHOP, GAME_OVER, VICTORY
 ผูกระบบ Particle, เสียงเอฟเฟกต์, ภารกิจผสมประจำตา, การควบคุม และการเปลี่ยนฉากเข้าด้วยกัน
 """
-import sys
 import pygame
 import settings as S
 import ui
@@ -323,8 +322,7 @@ class Game:
                         elif key == "continue":
                             self.load_game()
                         elif key == "quit":
-                            pygame.quit()
-                            sys.exit()
+                            pygame.event.post(pygame.event.Event(pygame.QUIT))
             return
 
         if self.state == HOW_TO_PLAY:
@@ -468,8 +466,7 @@ class Game:
                         elif key == "save_quit":
                             self.save_and_quit()
                         elif key == "quit_nosave":
-                            pygame.quit()
-                            sys.exit()
+                            pygame.event.post(pygame.event.Event(pygame.QUIT))
                         elif key == "mute":
                             assets.toggle_mute()
             elif self.state == SHOP:
@@ -496,8 +493,7 @@ class Game:
                         if key == "menu":
                             self.state = MENU
                         elif key == "quit":
-                            pygame.quit()
-                            sys.exit()
+                            pygame.event.post(pygame.event.Event(pygame.QUIT))
 
     # ------------------------------------------------------------------
     def _input_direction(self):
