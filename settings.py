@@ -13,7 +13,7 @@ SCREEN_H = 720 + HUD_H         # 810
 FPS = 60
 
 SURFACE_ROW = 3                 # แถวพื้นดิน (หญ้า) - เหนือแถวนี้คือท้องฟ้า/ลานหน้าบ้าน
-WORLD_ROWS = 500                # ความลึกทั้งหมดของโลก (แถว) - ขยายมากพอจนแทบไม่มีจุดสิ้นสุด
+WORLD_ROWS = 650                # ความลึกทั้งหมดของโลก (แถว) - ขยายมากพอจนแทบไม่มีจุดสิ้นสุด รองรับโหมดคลาสสิก
 WORLD_PIXEL_H = WORLD_ROWS * TILE
 
 HOME_COL = 2                    # ตำแหน่งคอลัมน์ของบ้าน/ฐาน
@@ -78,15 +78,109 @@ T_GRASS = 1
 T_DIRT = 2
 T_ROCK = 3
 T_EMPTY = 4
+T_BARRIER = 5     # ประตูกั้นชั้นความลึก (โหมดคลาสสิก ปลดล็อคด้วยเหรียญ)
 
 # ความทนทานของบล็อก (ปรับสมดุลให้ขุดสนุก ไว และไม่หน่วง)
 TILE_HARDNESS = {
     T_GRASS: 4.0,   # ขุดประมาณ 0.4 วินาทีที่ Power เริ่มต้น
     T_DIRT: 4.5,    # ขุดประมาณ 0.45 วินาทีที่ Power เริ่มต้น
     T_ROCK: 18.0,   # หินแข็ง ต้องใช้แรงขุดมากขึ้น
+    T_BARRIER: 999999.0, # ปลดล็อคด้วยเหรียญเท่านั้น
 }
 ROCK_MIN_DRILL_LEVEL = 2   # ต้องอัพเกรดหัวขุดถึงระดับนี้ถึงจะเจาะหินได้
-ROCK_LAYER_DEPTH = 40       # ความลึกตั้งแต่ 40 ช่องลงไปเป็นชั้นหินล้วน (Bedrock Layer)
+ROCK_LAYER_DEPTH = 40       # ความลึกตั้งแต่ 40 ช่องลงไปเป็นชั้นหินล้วน (สำหรับโหมดภารกิจ)
+
+# ---------- โหมดคลาสสิก: ชั้นความลึกและค่าปลดล็อค (Classic Endless Floors) ----------
+CLASSIC_FLOORS = [
+    {
+        "floor": 1,
+        "name": "ผิวดิน & แร่อ่อน (Upper Crust)",
+        "min_depth": 0,
+        "max_depth": 20,
+        "unlock_cost": 0,           # เริ่มต้นปลดล็อคทันที
+        "desc": "ดินร่วนซุย เหรียญแร่และทองคำ เหมาะสำหรับสะสมทุนตั้งต้น",
+        "theme_color": (95, 205, 120),
+    },
+    {
+        "floor": 2,
+        "name": "หินแกรนิต & สายแร่ทอง (Granite Depths)",
+        "min_depth": 21,
+        "max_depth": 45,
+        "unlock_cost": 300,         # 300 เหรียญ
+        "desc": "หินแกรนิตแข็งปานกลาง ทองคำหนาแน่น และเริ่มพบเพชรแท้",
+        "theme_color": (245, 195, 50),
+    },
+    {
+        "floor": 3,
+        "name": "หุบเหวคริสตัล & อัญมณี (Crystal Caverns)",
+        "min_depth": 46,
+        "max_depth": 75,
+        "unlock_cost": 800,         # 800 เหรียญ
+        "desc": "ผลึกเพชรน้ำงาม แหล่งรวมอัญมณีล้ำค่าและถังน้ำมันโบราณ",
+        "theme_color": (90, 215, 255),
+    },
+    {
+        "floor": 4,
+        "name": "ลาวาใต้พิภพ & เพชรบริสุทธิ์ (Magma Bedrock)",
+        "min_depth": 76,
+        "max_depth": 110,
+        "unlock_cost": 1800,        # 1800 เหรียญ
+        "desc": "ชั้นหินหนาแน่น แหล่งเพชรและขุมทรัพย์มูลค่ามหาศาล",
+        "theme_color": (255, 115, 55),
+    },
+    {
+        "floor": 5,
+        "name": "แกนพิภพลี้ลับ (Core Abyss)",
+        "min_depth": 111,
+        "max_depth": 150,
+        "unlock_cost": 3200,        # 3200 เหรียญ
+        "desc": "แกนกลางโลก ทะเลทองคำและเพชรแท้ล้ำค่า",
+        "theme_color": (195, 110, 255),
+    },
+    {
+        "floor": 6,
+        "name": "มิติใต้พิภพไร้สิ้นสุด (Infinite Depths)",
+        "min_depth": 151,
+        "max_depth": 200,
+        "unlock_cost": 5000,        # 5000 เหรียญ
+        "desc": "ความลึกระดับตำนาน ขุมทรัพย์ไร้ขีดจำกัด",
+        "theme_color": (255, 80, 140),
+    },
+]
+
+
+def get_floor_info(floor_num):
+    """คืนค่าพารามิเตอร์ของชั้น floor_num (รองรับลึกอนันต์ / Unlimited procedural scaling)"""
+    if 1 <= floor_num <= len(CLASSIC_FLOORS):
+        return CLASSIC_FLOORS[floor_num - 1]
+
+    # คำนวณอัตโนมัติสำหรับชั้นที่ 7+ (เล่นได้ไม่จำกัดตามคำขอ unlimited play)
+    extra_tiers = floor_num - len(CLASSIC_FLOORS)
+    prev_max = CLASSIC_FLOORS[-1]["max_depth"]
+    step = 50
+    min_d = prev_max + (extra_tiers - 1) * step + 1
+    max_d = min_d + step - 1
+    cost = 5000 + extra_tiers * 2000
+
+    colors = [
+        (255, 215, 0),
+        (0, 255, 200),
+        (255, 105, 180),
+        (138, 43, 226),
+        (255, 69, 0),
+    ]
+    theme_col = colors[(floor_num - 1) % len(colors)]
+
+    return {
+        "floor": floor_num,
+        "name": f"ชั้นไร้สิ้นสุดระดับ {floor_num} (Deep Realm {floor_num})",
+        "min_depth": min_d,
+        "max_depth": max_d,
+        "unlock_cost": cost,
+        "desc": f"ชั้นความลึกอนันต์ {min_d}-{max_d} เมตร สะสมสมบัติได้ไม่มีวันสิ้นสุด",
+        "theme_color": theme_col,
+    }
+
 
 # ---------- รถขุด (ค่าเริ่มต้น และการอัพเกรด) ----------
 BASE_SPEED = 160.0             # พิกเซล/วินาที (บังคับคล่องตัวขึ้น)

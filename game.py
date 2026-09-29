@@ -22,6 +22,7 @@ PLAYING = "playing"
 PAUSED = "paused"
 SHOP = "shop"
 GARAGE = "garage"
+HOW_TO_PLAY = "how_to_play"
 GAME_OVER = "game_over"
 VICTORY = "victory"
 
@@ -48,6 +49,9 @@ class Game:
         self.display_offset = (0, 0)
         # ตัวแปรระบบอู่แต่งรถขุด (Garage & Customization)
         self.garage_tab = "color"
+        self.shop_tab = "upgrades"
+        self.game_mode = "mission"  # "mission" หรือ "classic"
+        self.unlocked_floor = 1     # ชั้นสูงสุดที่ปลดล็อคแล้วในโหมดคลาสสิก
         self.previous_state = MENU
         assets.init()
 
@@ -57,7 +61,10 @@ class Game:
         prev_type = self.vehicle.vehicle_type if self.vehicle else getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
         prev_drill = self.vehicle.drill_head if self.vehicle else getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
 
-        self.world = World()
+        self.game_mode = "mission"
+        self.unlocked_floor = 1
+        self.shop_tab = "upgrades"
+        self.world = World(game_mode="mission", unlocked_floor=1)
         self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1,
                                color_id=prev_color, vehicle_type=prev_type, drill_head=prev_drill)
         self.vehicle.on_resource_collected = self._on_resource_collected
@@ -70,6 +77,77 @@ class Game:
         self.state = PLAYING
         self._toast(f"เริ่มภารกิจ: {self.mission.title} ({self.mission.diff_info['name']})")
 
+    def new_game_classic(self):
+        """เริ่มเล่นโหมดคลาสสิก: เล่นได้ไม่จำกัด (Unlimited) สะสมเงินเพื่อปลดล็อคชั้นความลึก"""
+        prev_color = self.vehicle.color_id if self.vehicle else getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
+        prev_type = self.vehicle.vehicle_type if self.vehicle else getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
+        prev_drill = self.vehicle.drill_head if self.vehicle else getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
+
+        self.game_mode = "classic"
+        self.unlocked_floor = 1
+        self.mission = None
+        self.shop_tab = "upgrades"
+        self.world = World(game_mode="classic", unlocked_floor=1)
+        self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1,
+                               color_id=prev_color, vehicle_type=prev_type, drill_head=prev_drill)
+        self.vehicle.on_resource_collected = self._on_resource_collected
+        self.vehicle.on_dive_performed = self._on_dive_performed
+        self.particles.clear()
+        self.camera_y = 0.0
+        self.was_in_home = True
+
+        self.state = PLAYING
+        self._toast("เริ่มโหมดคลาสสิก! ขุดอิสระไร้ขีดจำกัด สะสมเงินปลดล็อคชั้นความลึก", dur=3.5)
+
+    def unlock_next_floor(self):
+        """ปลดล็อคชั้นความลึกถัดไปในโหมดคลาสสิก (หักเหรียญและเปิดประตูกั้น)"""
+        if self.game_mode != "classic" or self.world is None or self.vehicle is None:
+            return False
+
+        next_floor = self.unlocked_floor + 1
+        floor_info = S.get_floor_info(next_floor)
+        cost = floor_info["unlock_cost"]
+
+        if self.vehicle.coins < cost:
+            diff = cost - self.vehicle.coins
+            self._toast(f"❌ เหรียญไม่พอ! ปลดล็อคชั้น {next_floor} ต้องใช้ {cost:,} เหรียญ (ขาดอีก {diff:,})", dur=3.0)
+            assets.play_sound("rock_clink", volume=0.7)
+            return False
+
+        self.vehicle.coins -= cost
+        self.unlocked_floor = next_floor
+        opened_blocks = self.world.unlock_barrier(next_floor)
+        assets.play_sound("upgrade", volume=0.95)
+
+        # Effect: ข้อความลอยและประกายดาวฉลองการเปิดประตู
+        prev_info = S.get_floor_info(next_floor - 1)
+        target_depth = prev_info["max_depth"]
+        bx = (S.COLS // 2) * S.TILE
+        by = (S.SURFACE_ROW + target_depth) * S.TILE
+        self.particles.add_floating_text(f"ปลดล็อคชั้น {next_floor}!", bx, by - 24, (255, 215, 60))
+        self.particles.add_floating_text(f"-{cost:,} เหรียญ", self.vehicle.x, self.vehicle.y - 20, (255, 120, 120))
+
+        for c in range(0, S.COLS, 2):
+            self.particles.spawn_spark(c * S.TILE + S.TILE // 2, by + S.TILE // 2, (90, 220, 255))
+            self.particles.spawn_diamond_spark(c * S.TILE + S.TILE // 2, by + S.TILE // 2)
+
+        self._toast(f"🎉 ปลดล็อค {floor_info['name']} สำเร็จ! เปิดทางสู่ความลึก {floor_info['min_depth']}ม.+", dur=3.8)
+        return True
+
+    def get_barrier_near_vehicle(self):
+        """คืนค่า (next_floor, floor_info, barrier_row) หากรถขุดอยู่ใกล้ประตูกั้นชั้นที่ล็อคอยู่"""
+        if getattr(self, "game_mode", "mission") != "classic" or self.world is None or self.vehicle is None:
+            return None
+        next_floor = self.unlocked_floor + 1
+        prev_floor_info = S.get_floor_info(self.unlocked_floor)
+        barrier_depth = prev_floor_info["max_depth"]
+        barrier_row = S.SURFACE_ROW + barrier_depth
+
+        v_col, v_row = self.vehicle.grid_pos()
+        if 0 <= barrier_row - v_row <= 2:
+            return next_floor, S.get_floor_info(next_floor), barrier_row
+        return None
+
     def load_game(self):
         try:
             data = SM.load_game()
@@ -81,22 +159,31 @@ class Game:
             self.particles.clear()
             self.camera_y = max(0.0, self.vehicle.y - S.SCREEN_H / 2)
             self.was_in_home = False
+            self.shop_tab = "upgrades"
 
             extra = data.get("extra", {})
+            self.game_mode = extra.get("game_mode", "classic" if not extra.get("mission") else "mission")
+            self.unlocked_floor = extra.get("unlocked_floor", getattr(self.world, "unlocked_floor", 1))
+
             if "mission" in extra and extra["mission"]:
                 self.mission = missions.Mission.from_dict(extra["mission"])
             else:
-                self.mission = missions.get_random_mission()
+                self.mission = None if self.game_mode == "classic" else missions.get_random_mission()
 
             self.state = PLAYING
-            self._toast(f"โหลดเกมสำเร็จ: {self.mission.title}")
+            if self.game_mode == "classic":
+                self._toast(f"โหลดเกมสำเร็จ: โหมดคลาสสิก (ชั้นที่ {self.unlocked_floor})")
+            else:
+                self._toast(f"โหลดเกมสำเร็จ: {self.mission.title}")
         except Exception as e:
             print(f"[Game] Load error: {e}, starting new game.")
             self.new_game()
 
     def save_and_quit(self):
         extra = {
-            "mission": self.mission.to_dict() if self.mission else None
+            "mission": self.mission.to_dict() if self.mission else None,
+            "game_mode": self.game_mode,
+            "unlocked_floor": self.unlocked_floor,
         }
         SM.save_game(self.world, self.vehicle, extra=extra)
         self.state = MENU
@@ -159,7 +246,9 @@ class Game:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):
-                        if key == "new":
+                        if key == "classic":
+                            self.new_game_classic()
+                        elif key == "new":
                             self.contract_options = missions.get_three_contract_options()
                             self.state = CONTRACT
                         elif key == "garage":
@@ -167,11 +256,27 @@ class Game:
                                 self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
                             self.previous_state = MENU
                             self.state = GARAGE
+                        elif key == "how_to_play":
+                            self.previous_state = MENU
+                            self.state = HOW_TO_PLAY
                         elif key == "continue":
                             self.load_game()
                         elif key == "quit":
                             pygame.quit()
                             sys.exit()
+            return
+
+        if self.state == HOW_TO_PLAY:
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_e, pygame.K_h, pygame.K_F1, pygame.K_SPACE, pygame.K_RETURN):
+                    self.state = self.previous_state
+                    return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos) and key in ("close", "back"):
+                        self.state = self.previous_state
+                        assets.play_sound("click", volume=0.6)
+                        return
             return
 
         if self.state == CONTRACT:
@@ -253,9 +358,19 @@ class Game:
                     self.state = PLAYING
                 elif self.state == SHOP:
                     self.state = PLAYING
+                elif self.state == HOW_TO_PLAY:
+                    self.state = self.previous_state
+            elif event.key in (pygame.K_h, pygame.K_F1):
+                if self.state == HOW_TO_PLAY:
+                    self.state = self.previous_state
+                elif self.state in (PLAYING, PAUSED, MENU):
+                    self.previous_state = self.state
+                    self.state = HOW_TO_PLAY
             elif event.key == pygame.K_e and self.state in (PLAYING, SHOP):
                 if self.state == PLAYING and self.vehicle.rect.colliderect(self.shop_zone()):
                     self.state = SHOP
+                elif self.state == PLAYING and getattr(self, "game_mode", "mission") == "classic" and self.get_barrier_near_vehicle() is not None:
+                    self.unlock_next_floor()
                 elif self.state == SHOP:
                     self.state = PLAYING
 
@@ -265,6 +380,9 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "resume":
                             self.state = PLAYING
+                        elif key == "how_to_play":
+                            self.previous_state = PAUSED
+                            self.state = HOW_TO_PLAY
                         elif key == "fullscreen":
                             pygame.event.post(pygame.event.Event(
                                 pygame.KEYDOWN,
@@ -282,9 +400,15 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "close":
                             self.state = PLAYING
+                        elif key == "tab_upgrades":
+                            self.shop_tab = "upgrades"
+                        elif key == "tab_floor":
+                            self.shop_tab = "floor"
                         elif key == "tab_garage":
                             self.previous_state = SHOP
                             self.state = GARAGE
+                        elif key == "unlock_floor":
+                            self.unlock_next_floor()
                         else:
                             self.vehicle.do_upgrade(key)
             elif self.state in (GAME_OVER, VICTORY):
@@ -330,7 +454,7 @@ class Game:
 
     def _shift_pressed(self):
         keys = pygame.key.get_pressed()
-        return keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+        return keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT] or keys[pygame.K_SPACE]
 
     # ------------------------------------------------------------------
     def update(self, dt):
@@ -369,13 +493,20 @@ class Game:
             else:
                 self._toast("เติมพลังงานเต็มแล้ว")
 
-            # ตรวจสอบเงื่อนไขชนะจากภารกิจผสม
+            # แจ้งเตือนหากเหรียญสะสมเพียงพอสำหรับการปลดล็อคชั้นถัดไปในโหมดคลาสสิก
+            if getattr(self, "game_mode", "mission") == "classic":
+                next_floor = self.unlocked_floor + 1
+                next_cost = S.get_floor_info(next_floor)["unlock_cost"]
+                if self.vehicle.coins >= next_cost:
+                    self._toast(f"💡 คุณมีเหรียญพอปลดล็อคชั้น {next_floor} แล้ว! ({next_cost:,} เหรียญ)", dur=3.2)
+
+            # ตรวจสอบเงื่อนไขชนะจากภารกิจผสม (เฉพาะโหมดภารกิจ)
             if self.mission and self.mission.is_completed():
                 self.end_title = "ภารกิจสำเร็จสมบูรณ์!"
                 self.end_sub = f"คุณพิชิตภารกิจ [{self.mission.title}] ระดับ{self.mission.diff_info['name']} สำเร็จครบทุกข้อ!"
                 self.state = VICTORY
                 assets.play_sound("upgrade", volume=0.95)
-            elif S.END_ON_TARGET_RESOURCE and self.vehicle.coins >= S.VICTORY_COIN_TARGET:
+            elif getattr(self, "game_mode", "mission") == "mission" and S.END_ON_TARGET_RESOURCE and self.vehicle.coins >= S.VICTORY_COIN_TARGET:
                 self.end_title = "ขุดเจอสมบัติมหาศาล!"
                 self.end_sub = f"คุณสะสมเหรียญครบ {S.VICTORY_COIN_TARGET} เหรียญแล้ว!"
                 self.state = VICTORY
@@ -411,10 +542,26 @@ class Game:
                 ui.draw_home_and_shop(self.screen, self.camera_y)
                 ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
                 depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
-                ui.draw_hud(self.screen, self.vehicle, depth, self.mission)
+                ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                            game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
             if self.vehicle is None:
                 self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
             self.buttons = ui.draw_garage_menu(self.screen, self.vehicle, mouse_pos, active_tab=self.garage_tab)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer)
+            return
+
+        if self.state == HOW_TO_PLAY:
+            if self.previous_state in (MENU, CONTRACT) or self.world is None or self.vehicle is None:
+                ui.draw_main_menu(self.screen, SM.save_exists(), mouse_pos)
+            else:
+                ui.draw_sky_and_bg(self.screen, self.camera_y)
+                ui.draw_world(self.screen, self.world, self.camera_y)
+                ui.draw_home_and_shop(self.screen, self.camera_y)
+                ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
+                depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+                ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                            game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
+            self.buttons = ui.draw_how_to_play(self.screen, mouse_pos)
             ui.draw_toast(self.screen, self.toast_msg, self.toast_timer)
             return
 
@@ -422,6 +569,13 @@ class Game:
         ui.draw_sky_and_bg(self.screen, self.camera_y)
         ui.draw_world(self.screen, self.world, self.camera_y)
         ui.draw_home_and_shop(self.screen, self.camera_y)
+
+        # หากอยู่ในโหมดคลาสสิก วาดป้ายประตูกั้นชั้นถัดไปที่ลอยอยู่เหนือประตู
+        if getattr(self, "game_mode", "mission") == "classic":
+            next_flr = self.unlocked_floor + 1
+            flr_info = S.get_floor_info(next_flr)
+            ui.draw_barrier_gate_banner(self.screen, flr_info, self.vehicle.coins, self.camera_y)
+
         ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
 
         # วาดอนุภาคและข้อความลอย
@@ -431,12 +585,14 @@ class Game:
         if self.state == PLAYING and pygame.mouse.get_pressed()[0]:
             ui.draw_aim_indicator(self.screen, self.vehicle, mouse_pos, self.camera_y)
 
-        # วาด HUD ด้านบน (รวมแถบภารกิจผสม)
+        # วาด HUD ด้านบน (รวมแถบภารกิจผสม หรือ โหมดคลาสสิก)
         depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
-        ui.draw_hud(self.screen, self.vehicle, depth, self.mission)
+        ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                    game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
 
         # แสดงข้อความคำใบ้ (Hint)
         diamond_bypass = getattr(self.vehicle, "drill_head", "") == "diamond"
+        barrier_near = self.get_barrier_near_vehicle() if getattr(self, "game_mode", "mission") == "classic" else None
         blocked_by_rock = (
             self.state == PLAYING
             and self.vehicle.drilling_target is not None
@@ -446,6 +602,14 @@ class Game:
         )
         if self.state == PLAYING and self.vehicle.rect.colliderect(self.shop_zone()):
             ui.draw_hint(self.screen, "กด E เพื่อเปิดร้านอัพเกรด")
+        elif self.state == PLAYING and barrier_near is not None:
+            n_flr, n_info, _ = barrier_near
+            cost = n_info["unlock_cost"]
+            if self.vehicle.coins >= cost:
+                ui.draw_hint(self.screen, f"กด [E] เพื่อปลดล็อคชั้น {n_flr} ({cost:,} เหรียญ)")
+            else:
+                diff = cost - self.vehicle.coins
+                ui.draw_hint(self.screen, f"ประตูกั้นชั้น {n_flr} ล็อคอยู่! ต้องใช้ {cost:,} เหรียญ (ขาดอีก {diff:,} เหรียญ)")
         elif blocked_by_rock:
             ui.draw_hint(self.screen, f"หินแข็งเกินไป! อัพเกรดหัวขุดถึง Lv.{S.ROCK_MIN_DRILL_LEVEL} ที่ร้านก่อน")
         elif self.vehicle.cargo_full() and self.state == PLAYING:
@@ -455,11 +619,18 @@ class Game:
 
         ui.draw_toast(self.screen, self.toast_msg, self.toast_timer)
 
+        # แถบแนะนำปุ่มลัดด้านล่างหน้าจอขณะเล่น
+        if self.state == PLAYING:
+            ui.draw_quick_controls_bar(self.screen)
+
         # วาดเมนูตาม State
         if self.state == PAUSED:
             self.buttons = ui.draw_pause_menu(self.screen, mouse_pos, is_fullscreen=self.is_fullscreen)
         elif self.state == SHOP:
-            self.buttons = ui.draw_shop_menu(self.screen, self.vehicle, mouse_pos)
+            self.buttons = ui.draw_shop_menu(self.screen, self.vehicle, mouse_pos,
+                                             game_mode=self.game_mode,
+                                             unlocked_floor=self.unlocked_floor,
+                                             active_tab=self.shop_tab)
         elif self.state == GAME_OVER:
             self.buttons = ui.draw_end_screen(self.screen, self.end_title, self.end_sub, self.vehicle,
                                                mouse_pos, mission=self.mission, color=(255, 100, 90))

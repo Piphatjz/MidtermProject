@@ -216,6 +216,15 @@ class ParticleSystem:
             ])
             self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=180.0))
 
+    def spawn_spark(self, x, y, color=(255, 220, 80)):
+        """ประกายไฟหรือดาวแสงสว่างพร้อมกำหนดสีได้"""
+        for _ in range(4):
+            vx = self.rng.uniform(-70, 70)
+            vy = self.rng.uniform(-80, 20)
+            life = self.rng.uniform(0.25, 0.50)
+            size = self.rng.uniform(2.5, 5.0)
+            self.particles.append(Particle(x, y, vx, vy, life, size, color, gravity=100.0))
+
     def add_floating_text(self, text, x, y, color=(255, 255, 100)):
         self.floating_texts.append(FloatingText(text, x, y, color))
 

@@ -419,6 +419,15 @@ class Vehicle:
         head_cfg = S.DRILL_HEADS.get(self.drill_head, S.DRILL_HEADS["spiral"])
         can_mine_rock = head_cfg.get("can_drill_rock_always", False) or (self.drill_level() >= S.ROCK_MIN_DRILL_LEVEL)
 
+        # เช็คว่าเป็นประตูกั้นชั้นความลึกที่ยังล็อคอยู่หรือไม่
+        if tile_type == getattr(S, "T_BARRIER", 5):
+            self.is_drilling = False
+            self._drill_sound_timer += dt
+            if self._drill_sound_timer >= 0.22:
+                assets.play_sound("rock_clink", volume=0.55)
+                self._drill_sound_timer = 0.0
+            return
+
         # เช็คว่าหินแข็งเกินกว่าหัวขุดปัจจุบันหรือไม่
         if is_rock and not can_mine_rock:
             self.is_drilling = False

@@ -141,6 +141,42 @@ def generate_tunnel_bg():
     img.save(os.path.join(IMG_DIR, "tunnel.png"))
 
 
+def generate_barrier_texture():
+    """สร้างพื้นผิวประตูกั้นชั้นความลึก (Security Barrier) พร้อมแถบเตือนสะท้อนแสงและไฟสถานะล็อค"""
+    img = Image.new("RGBA", (TILE, TILE), (34, 38, 50, 255))
+    draw = ImageDraw.Draw(img)
+
+    # Diagonal hazard caution stripes (bright amber/yellow & dark industrial gray)
+    stripe_w = 9
+    for offset in range(-TILE, TILE * 2, stripe_w * 2):
+        pts = [
+            (offset, 0),
+            (offset + stripe_w, 0),
+            (offset + stripe_w - TILE, TILE),
+            (offset - TILE, TILE),
+        ]
+        draw.polygon(pts, fill=(235, 185, 25, 235))
+
+    # Darker border & bevel
+    draw.rectangle([0, 0, TILE - 1, TILE - 1], outline=(18, 22, 30, 255), width=2)
+    draw.line([(1, 1), (TILE - 2, 1)], fill=(110, 130, 160, 230), width=1)
+    draw.line([(1, 1), (1, TILE - 2)], fill=(110, 130, 160, 230), width=1)
+    draw.line([(1, TILE - 2), (TILE - 2, TILE - 2)], fill=(15, 18, 24, 250), width=1)
+    draw.line([(TILE - 2, 1), (TILE - 2, TILE - 2)], fill=(15, 18, 24, 250), width=1)
+
+    # Steel rivets at 4 corners
+    for rx, ry in [(5, 5), (TILE - 6, 5), (5, TILE - 6), (TILE - 6, TILE - 6)]:
+        draw.ellipse([rx - 2, ry - 2, rx + 2, ry + 2], fill=(55, 62, 75, 255))
+        draw.point((rx - 1, ry - 1), fill=(190, 210, 240, 255))
+
+    # Center horizontal glowing security laser/lock beam
+    cy = TILE // 2
+    draw.line([(2, cy), (TILE - 3, cy)], fill=(255, 65, 45, 245), width=3)
+    draw.line([(3, cy), (TILE - 4, cy)], fill=(255, 225, 140, 255), width=1)
+
+    img.save(os.path.join(IMG_DIR, "barrier.png"))
+
+
 def generate_cracks():
     # Crack progressive overlays at stages 1, 2, 3
     for stage in [1, 2, 3]:
@@ -614,6 +650,7 @@ def build_all_assets():
     generate_grass_texture()
     generate_rock_texture()
     generate_tunnel_bg()
+    generate_barrier_texture()
     generate_cracks()
     generate_resources()
     generate_vehicle_sprites()

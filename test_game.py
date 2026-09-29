@@ -104,7 +104,16 @@ def run_tests():
     ui.draw_shop_menu(screen, game.vehicle, (100, 100))
     ui.draw_pause_menu(screen, (100, 100))
     ui.draw_end_screen(screen, "ทดสอบ", "คำอธิบาย", game.vehicle, (100, 100), mission=game.mission)
-    print("  -> UI rendering across all menus and HUD passed OK.")
+    how_buttons = ui.draw_how_to_play(screen, (100, 100))
+    assert "close" in how_buttons
+    ui.draw_quick_controls_bar(screen)
+
+    # Test menu button presence
+    m_btns = ui.draw_main_menu(screen, False, (100, 100))
+    assert "how_to_play" in m_btns
+    p_btns = ui.draw_pause_menu(screen, (100, 100))
+    assert "how_to_play" in p_btns
+    print("  -> UI rendering across all menus, HUD, and How to Play passed OK.")
 
     # Test 5: Composite Mission Progression & Victory
     print("Testing Composite Mission Progression and Victory...")
@@ -272,6 +281,71 @@ def run_tests():
     assert loaded_game.vehicle.drill_head == "plasma"
     assert loaded_game.vehicle.power > v_std.power * 1.5
     print("  -> Customization saved and restored accurately.")
+
+    # Test 11: Classic Endless Mode & Floor Unlocking
+    print("Testing Classic Endless Mode & Floor Unlocking...")
+    c_game = Game(screen)
+    c_game.new_game_classic()
+    assert c_game.game_mode == "classic"
+    assert c_game.unlocked_floor == 1
+    assert c_game.mission is None
+
+    # Verify barrier placement at Floor 1 max_depth (depth 20 -> row 23)
+    b_row_flr1 = S.SURFACE_ROW + S.CLASSIC_FLOORS[0]["max_depth"]
+    for c in range(S.COLS):
+        assert c_game.world.tiles[b_row_flr1][c] == S.T_BARRIER, f"Row {b_row_flr1} col {c} must be T_BARRIER"
+        assert c_game.world.is_solid(c, b_row_flr1), f"Row {b_row_flr1} must be solid"
+
+    # Vehicle trying to drill barrier cannot break it
+    c_game.vehicle.x = 2 * S.TILE
+    c_game.vehicle.y = (b_row_flr1 - 1) * S.TILE
+    c_game.vehicle.update(0.016, c_game.world, (0, 1), c_game.particles)
+    assert not c_game.vehicle.is_drilling, "Drilling barrier must be blocked!"
+    assert c_game.world.tiles[b_row_flr1][2] == S.T_BARRIER
+
+    # Near barrier detection
+    barrier_detected = c_game.get_barrier_near_vehicle()
+    assert barrier_detected is not None
+    next_floor_num, flr_info, b_row = barrier_detected
+    assert next_floor_num == 2
+    assert b_row == b_row_flr1
+
+    # Insufficient funds to unlock floor 2
+    c_game.vehicle.coins = 50
+    cost_flr2 = flr_info["unlock_cost"]
+    assert not c_game.unlock_next_floor()
+    assert c_game.unlocked_floor == 1
+    assert c_game.world.tiles[b_row_flr1][2] == S.T_BARRIER
+
+    # Give enough coins and unlock floor 2
+    c_game.vehicle.coins = cost_flr2 + 100
+    res_unlock = c_game.unlock_next_floor()
+    assert res_unlock
+    assert c_game.unlocked_floor == 2
+    assert c_game.vehicle.coins == 100
+    for c in range(S.COLS):
+        assert c_game.world.tiles[b_row_flr1][c] == S.T_EMPTY, f"Row {b_row_flr1} must now be opened (T_EMPTY)"
+
+    # Test Shop floor tab rendering
+    c_game.shop_tab = "floor"
+    shop_buttons = ui.draw_shop_menu(screen, c_game.vehicle, (100, 100),
+                                     game_mode=c_game.game_mode,
+                                     unlocked_floor=c_game.unlocked_floor,
+                                     active_tab=c_game.shop_tab)
+    assert "tab_floor" in shop_buttons
+    assert "unlock_floor" in shop_buttons
+
+    # Test Save & Load persistence for Classic Mode
+    c_game.save_and_quit()
+    c_loaded = Game(screen)
+    c_loaded.load_game()
+    assert c_loaded.game_mode == "classic"
+    assert c_loaded.unlocked_floor == 2
+    assert c_loaded.world.tiles[b_row_flr1][2] == S.T_EMPTY
+    # Next barrier (Floor 2 max depth: 45 -> row 48) should still be locked
+    b_row_flr2 = S.SURFACE_ROW + S.CLASSIC_FLOORS[1]["max_depth"]
+    assert c_loaded.world.tiles[b_row_flr2][2] == S.T_BARRIER
+    print("  -> Classic mode barrier mechanics, unlock flow, and persistence verified OK.")
 
     # Clean up test save
     if SM.save_exists():
