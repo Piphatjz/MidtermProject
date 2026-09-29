@@ -148,6 +148,67 @@ class Game:
             return next_floor, S.get_floor_info(next_floor), barrier_row
         return None
 
+    def call_cargo_drone(self):
+        """เรียกโดรนขนส่งสินค้ามารับแร่ไปขายทันทีใต้ดิน"""
+        if self.vehicle is None:
+            return
+        if self.vehicle.cargo_count == 0:
+            self._toast("ไม่มีแร่ในถังที่จะส่งขาย!")
+            assets.play_sound("rock_clink", volume=0.5)
+            return
+
+        cnt = self.vehicle.cargo_count
+        earned = self.vehicle.sell_cargo()
+        assets.play_sound("sell", volume=0.85)
+        assets.play_sound("coin", volume=0.8)
+        self.particles.spawn_drone_delivery(self.vehicle.rect.centerx, self.vehicle.rect.centery)
+        self.particles.add_floating_text(
+            f"+{earned} G (โดรนขาย {cnt} ก้อน)",
+            self.vehicle.rect.centerx,
+            self.vehicle.rect.top - 15,
+            (255, 220, 60)
+        )
+        self._toast(f"🚀 โดรนมารับแร่ {cnt} ก้อน ได้รับ {earned:,} เหรียญ!")
+
+        # หากอยู่ในโหมดคลาสสิก แล้วเหรียญพอปลดล็อคชั้นถัดไป แนะนำให้เปิดวิทยุร้านค้า
+        if getattr(self, "game_mode", "mission") == "classic":
+            next_f = self.unlocked_floor + 1
+            cost = S.get_floor_info(next_f)["unlock_cost"]
+            if self.vehicle.coins >= cost:
+                self._toast(f"✨ เหรียญพอปลดล็อคชั้น {next_f} แล้ว! กด [B] เพื่อเปิดร้านค้าได้เลย", dur=3.5)
+
+    def open_radio_shop(self):
+        """เปิดหน้าต่างร้านค้าวิทยุสื่อสารใต้ดิน (Radio Shop)"""
+        self.state = SHOP
+        assets.play_sound("click", volume=0.6)
+
+    def buy_emergency_fuel(self):
+        """สั่งแอร์ดรอปน้ำมันฉุกเฉินส่งลงมาใต้ดิน"""
+        if self.vehicle is None:
+            return
+        fuel_cost = 25
+        if self.vehicle.energy >= self.vehicle.max_energy:
+            self._toast("พลังงานเต็มอยู่แล้ว ไม่จำเป็นต้องเติม!")
+            assets.play_sound("rock_clink", volume=0.5)
+            return
+
+        if self.vehicle.coins < fuel_cost:
+            self._toast(f"เหรียญไม่พอสำหรับแอร์ดรอปน้ำมัน! (ต้องการ {fuel_cost} เหรียญ)")
+            assets.play_sound("rock_clink", volume=0.5)
+            return
+
+        self.vehicle.coins -= fuel_cost
+        add_amount = max(50.0, self.vehicle.max_energy * 0.5)
+        self.vehicle.energy = min(self.vehicle.max_energy, self.vehicle.energy + add_amount)
+        assets.play_sound("refuel", volume=0.9)
+        self.particles.add_floating_text(
+            f"+{int(add_amount)} Energy ⛽",
+            self.vehicle.rect.centerx,
+            self.vehicle.rect.centery,
+            (80, 245, 130)
+        )
+        self._toast(f"⛽ สั่งแอร์ดรอปน้ำมันสำเร็จ! (+{int(add_amount)} พลังงาน)")
+
     def load_game(self):
         try:
             data = SM.load_game()
@@ -366,6 +427,13 @@ class Game:
                 elif self.state in (PLAYING, PAUSED, MENU):
                     self.previous_state = self.state
                     self.state = HOW_TO_PLAY
+            elif event.key == pygame.K_r and self.state == PLAYING:
+                self.call_cargo_drone()
+            elif event.key == pygame.K_b:
+                if self.state == PLAYING:
+                    self.open_radio_shop()
+                elif self.state == SHOP:
+                    self.state = PLAYING
             elif event.key == pygame.K_e and self.state in (PLAYING, SHOP):
                 if self.state == PLAYING and self.vehicle.rect.colliderect(self.shop_zone()):
                     self.state = SHOP
@@ -375,7 +443,16 @@ class Game:
                     self.state = PLAYING
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.state == PAUSED:
+            if self.state == PLAYING:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "drone":
+                            self.call_cargo_drone()
+                            return
+                        elif key == "shop":
+                            self.open_radio_shop()
+                            return
+            elif self.state == PAUSED:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):
                         if key == "resume":
@@ -400,6 +477,8 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "close":
                             self.state = PLAYING
+                        elif key == "emergency_refuel":
+                            self.buy_emergency_fuel()
                         elif key == "tab_upgrades":
                             self.shop_tab = "upgrades"
                         elif key == "tab_floor":
@@ -587,8 +666,9 @@ class Game:
 
         # วาด HUD ด้านบน (รวมแถบภารกิจผสม หรือ โหมดคลาสสิก)
         depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
-        ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
-                    game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
+        hud_buttons = ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                                  mouse_pos=mouse_pos,
+                                  game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
 
         # แสดงข้อความคำใบ้ (Hint)
         diamond_bypass = getattr(self.vehicle, "drill_head", "") == "diamond"
@@ -601,7 +681,7 @@ class Game:
             and not diamond_bypass
         )
         if self.state == PLAYING and self.vehicle.rect.colliderect(self.shop_zone()):
-            ui.draw_hint(self.screen, "กด E เพื่อเปิดร้านอัพเกรด")
+            ui.draw_hint(self.screen, "กด E เพื่อเปิดร้านอัพเกรด (หรือกด B ได้ทุกที่)")
         elif self.state == PLAYING and barrier_near is not None:
             n_flr, n_info, _ = barrier_near
             cost = n_info["unlock_cost"]
@@ -613,9 +693,9 @@ class Game:
         elif blocked_by_rock:
             ui.draw_hint(self.screen, f"หินแข็งเกินไป! อัพเกรดหัวขุดถึง Lv.{S.ROCK_MIN_DRILL_LEVEL} ที่ร้านก่อน")
         elif self.vehicle.cargo_full() and self.state == PLAYING:
-            ui.draw_hint(self.screen, "ถังเต็มแล้ว! กลับบ้านเพื่อขายของ")
+            ui.draw_hint(self.screen, "ถังเต็มแล้ว! กด [R] เรียกดโรนขายแร่ทันที หรือเปิดร้านค้า [B]")
         elif self.vehicle.stalled and self.state == PLAYING:
-            ui.draw_hint(self.screen, "พลังงานหมด! รอโดนจบเกม หรือกด ESC")
+            ui.draw_hint(self.screen, "พลังงานหมด! กด [B] เพื่อสั่งแอร์ดรอปน้ำมันฉุกเฉิน")
 
         ui.draw_toast(self.screen, self.toast_msg, self.toast_timer)
 
@@ -624,7 +704,9 @@ class Game:
             ui.draw_quick_controls_bar(self.screen)
 
         # วาดเมนูตาม State
-        if self.state == PAUSED:
+        if self.state == PLAYING:
+            self.buttons = hud_buttons
+        elif self.state == PAUSED:
             self.buttons = ui.draw_pause_menu(self.screen, mouse_pos, is_fullscreen=self.is_fullscreen)
         elif self.state == SHOP:
             self.buttons = ui.draw_shop_menu(self.screen, self.vehicle, mouse_pos,

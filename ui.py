@@ -569,7 +569,7 @@ _Z_LEFT_W   = 195
 _Z_CENTER_W = 250
 _Z_RIGHT_W  = S.SCREEN_W - _Z_LEFT_W - _Z_CENTER_W  # 275
 
-def draw_hud(surface, vehicle, depth, mission=None, game_mode="mission", unlocked_floor=1):
+def draw_hud(surface, vehicle, depth, mission=None, game_mode="mission", unlocked_floor=1, mouse_pos=None):
     # พื้นหลังแถบ HUD
     hud_surf = pygame.Surface((S.SCREEN_W, S.HUD_H), pygame.SRCALPHA)
     hud_surf.fill((18, 20, 28, 252))
@@ -582,15 +582,37 @@ def draw_hud(surface, vehicle, depth, mission=None, game_mode="mission", unlocke
     # เส้นขอบล่าง HUD
     pygame.draw.line(surface, (55, 62, 85), (0, S.HUD_H - 1), (S.SCREEN_W, S.HUD_H - 1), 2)
 
-    _hud_zone_left(surface, vehicle)
-    _hud_zone_center(surface, vehicle, depth)
+    buttons = {}
+    _hud_zone_left(surface, vehicle, buttons=buttons, mouse_pos=mouse_pos)
+    _hud_zone_center(surface, vehicle, depth, buttons=buttons, mouse_pos=mouse_pos)
     _hud_zone_right(surface, vehicle, mission, game_mode=game_mode, unlocked_floor=unlocked_floor, depth=depth)
+    return buttons
 
 
-def _hud_zone_left(surface, vehicle):
-    """โซนซ้าย: ทรัพยากรในถังขุด (ช่องแคปซูลขอบมนหรูหรา ไร้ขอบสี่เหลี่ยมทื่อ)"""
+def _hud_zone_left(surface, vehicle, buttons=None, mouse_pos=None):
+    """โซนซ้าย: ทรัพยากรในถังขุด พร้อมปุ่มลัดเรียกโดรนขนส่งแร่ [R]"""
     draw_icon_cargo(surface, (14, 8, 16, 16), (170, 190, 220))
     text(surface, "แร่ในถัง", FONT_XS, (170, 190, 220), (35, 9))
+
+    # ปุ่มทางลัดเรียกโดรนขายแร่ (Cargo Drone Shortcut Button)
+    btn_drone = pygame.Rect(96, 5, 90, 20)
+    has_cargo = vehicle.cargo_count > 0
+    is_hover = (mouse_pos is not None and btn_drone.collidepoint(mouse_pos))
+    if has_cargo:
+        d_bg = (38, 110, 68) if not is_hover else (48, 140, 85)
+        d_border = (90, 215, 140)
+        d_txt_col = (255, 255, 255)
+    else:
+        d_bg = (30, 34, 46) if not is_hover else (38, 44, 58)
+        d_border = (60, 70, 92)
+        d_txt_col = (150, 165, 185)
+
+    pygame.draw.rect(surface, d_bg, btn_drone, border_radius=5)
+    pygame.draw.rect(surface, d_border, btn_drone, 1, border_radius=5)
+    text(surface, "🚀 โดรน (R)", FONT_XS, d_txt_col, (btn_drone.centerx, btn_drone.centery), center=True)
+    if buttons is not None:
+        buttons["drone"] = btn_drone
+        buttons["drone_sell"] = btn_drone
 
     items = [
         ("res_coin",    vehicle.cargo[S.RES_COIN],    (255, 220, 80)),
@@ -621,15 +643,28 @@ def _hud_zone_left(surface, vehicle):
              (sx + slot_w // 2, y_start + 38), center=True, shadow=True, max_w=slot_w - 6)
 
 
-def _hud_zone_center(surface, vehicle, depth):
-    """โซนกลาง: เหรียญสะสม | ความลึก | หลอดพลังงาน | หลอดความจุถัง (ไอคอนเวกเตอร์)"""
+def _hud_zone_center(surface, vehicle, depth, buttons=None, mouse_pos=None):
+    """โซนกลาง: เหรียญสะสม | ปุ่มร้านค้าดาวเทียม [B] | ความลึก | หลอดพลังงาน | หลอดความจุถัง"""
     x0 = _Z_LEFT_W + 12
     bar_w = 226
 
-    # แถวบน: เหรียญ (ซ้าย) + ความลึก (ขวา)
+    # แถวบน: เหรียญ (ซ้าย) + ปุ่มร้านค้า (กลาง) + ความลึก (ขวา)
     coin_icon = pygame.transform.smoothscale(assets.get_image("res_coin"), (18, 18))
     surface.blit(coin_icon, (x0, 8))
     text(surface, f"{vehicle.coins:,}", FONT_M, (255, 215, 60), (x0 + 22, 6))
+
+    # ปุ่มทางลัดร้านค้าดาวเทียม (Radio Shop Shortcut Button)
+    btn_shop = pygame.Rect(x0 + 78, 6, 72, 21)
+    is_hover_s = (mouse_pos is not None and btn_shop.collidepoint(mouse_pos))
+    s_bg = (42, 75, 130) if not is_hover_s else (55, 95, 165)
+    s_border = (85, 145, 240)
+    s_txt = (255, 255, 255) if is_hover_s else (215, 230, 255)
+    pygame.draw.rect(surface, s_bg, btn_shop, border_radius=5)
+    pygame.draw.rect(surface, s_border, btn_shop, 1, border_radius=5)
+    text(surface, "📡 ร้าน (B)", FONT_XS, s_txt, (btn_shop.centerx, btn_shop.centery), center=True)
+    if buttons is not None:
+        buttons["shop"] = btn_shop
+        buttons["radio_shop"] = btn_shop
 
     depth_txt = f"▼ {depth} ม.  T{vehicle.overall_tier()}"
     text(surface, depth_txt, FONT_S, (140, 215, 245), (x0 + bar_w, 8), right=True)
@@ -650,7 +685,7 @@ def _hud_zone_center(surface, vehicle, depth):
     _draw_bar(surface, x0, 60, bar_w, 20, cratio, c_fg,
               bg=(24, 38, 25), radius=6, border=(45, 68, 48))
     draw_icon_cargo(surface, (x0 + 6, 62, 16, 16), (220, 245, 220) if not vehicle.cargo_full() else (255, 140, 130))
-    cap_lbl = "ถังเต็ม!" if vehicle.cargo_full() else f"ถัง: {vehicle.cargo_count} / {vehicle.max_capacity}"
+    cap_lbl = "ถังเต็ม! กด R" if vehicle.cargo_full() else f"ถัง: {vehicle.cargo_count} / {vehicle.max_capacity}"
     cap_col = (255, 140, 130) if vehicle.cargo_full() else (225, 245, 225)
     text(surface, cap_lbl, FONT_XS, cap_col,
          (x0 + bar_w // 2, 70), center=True, shadow=True)
@@ -832,9 +867,11 @@ def draw_quick_controls_bar(surface):
 
     items = [
         ("WASD / ↑↓←→", "เดิน/ขุด"),
-        ("Shift / Space", "Turbo"),
-        ("E", "ร้านค้า/ปลดล็อค"),
-        ("H", "วิธีเล่น"),
+        ("Shift", "Turbo"),
+        ("R", "โดรนขายแร่"),
+        ("B", "วิทยุร้านค้า"),
+        ("E", "ปลดล็อคชั้น"),
+        ("H", "ช่วย"),
         ("ESC", "เมนู"),
     ]
 
@@ -842,7 +879,7 @@ def draw_quick_controls_bar(surface):
     for k_txt, desc_txt in items:
         kw, _ = FONT_XS.size(k_txt)
         dw, _ = FONT_XS.size(desc_txt)
-        total_w += (kw + 10) + 5 + dw + 18
+        total_w += (kw + 10) + 5 + dw + 14
 
     start_x = max(8, (S.SCREEN_W - total_w) // 2)
     cur_x = start_x
@@ -854,7 +891,7 @@ def draw_quick_controls_bar(surface):
         brect = pygame.Rect(cur_x, by, bw, bh)
         pygame.draw.rect(surface, (36, 44, 62), brect, border_radius=4)
         pygame.draw.rect(surface, (80, 95, 130), brect, 1, border_radius=4)
-        k_col = (255, 225, 105) if k_txt in ("Shift / Space", "E") else (225, 235, 250)
+        k_col = (255, 225, 105) if k_txt in ("Shift", "R", "B", "E") else (225, 235, 250)
         text(surface, k_txt, FONT_XS, k_col, (brect.centerx, brect.centery), center=True, shadow=False)
 
         cur_x += bw + 5
@@ -1325,8 +1362,24 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
                  FONT_XS, f_col, (list_rect.left + 36, row_y + 2), max_w=240)
             text(surface, status_txt, FONT_XS, status_col, (list_rect.right - 14, row_y + 2), right=True)
 
-        close_rect = pygame.Rect(cx - 80, panel.bottom - 46, 160, 36)
-        button(surface, close_rect, "ปิด  (E)", FONT_S, base=(55, 58, 80),
+        fuel_cost = 25
+        can_refuel = (vehicle.coins >= fuel_cost and vehicle.energy < vehicle.max_energy)
+        refuel_rect = pygame.Rect(panel.left + 20, panel.bottom - 46, 240, 36)
+        if vehicle.energy >= vehicle.max_energy:
+            r_lbl = "⛽ พลังงานเต็มแล้ว"
+            r_bg = (40, 48, 55)
+        elif vehicle.coins >= fuel_cost:
+            r_lbl = f"⛽ แอร์ดรอปน้ำมัน ({fuel_cost} G)"
+            r_bg = (30, 110, 145)
+        else:
+            r_lbl = f"⛽ แอร์ดรอปน้ำมัน ({fuel_cost} G)"
+            r_bg = (55, 45, 50)
+        button(surface, refuel_rect, r_lbl, FONT_S, base=r_bg,
+               hover=can_refuel and refuel_rect.collidepoint(mouse_pos))
+        buttons["emergency_refuel"] = refuel_rect
+
+        close_rect = pygame.Rect(panel.right - 180, panel.bottom - 46, 160, 36)
+        button(surface, close_rect, "ปิด  (B / ESC)", FONT_S, base=(55, 58, 80),
                hover=close_rect.collidepoint(mouse_pos))
         buttons["close"] = close_rect
         return buttons
@@ -1403,8 +1456,24 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
         t_col = (255, 235, 140) if can_flr else (190, 205, 230)
         text(surface, t_msg, FONT_XS, t_col, (teaser_rect.left + 32, teaser_rect.centery - 7), max_w=teaser_rect.w - 40)
 
-    close_rect = pygame.Rect(cx - 80, panel.bottom - 46, 160, 36)
-    button(surface, close_rect, "ปิด  (E)", FONT_S, base=(55, 58, 80),
+    fuel_cost = 25
+    can_refuel = (vehicle.coins >= fuel_cost and vehicle.energy < vehicle.max_energy)
+    refuel_rect = pygame.Rect(panel.left + 20, panel.bottom - 46, 240, 36)
+    if vehicle.energy >= vehicle.max_energy:
+        r_lbl = "⛽ พลังงานเต็มแล้ว"
+        r_bg = (40, 48, 55)
+    elif vehicle.coins >= fuel_cost:
+        r_lbl = f"⛽ แอร์ดรอปน้ำมัน ({fuel_cost} G)"
+        r_bg = (30, 110, 145)
+    else:
+        r_lbl = f"⛽ แอร์ดรอปน้ำมัน ({fuel_cost} G)"
+        r_bg = (55, 45, 50)
+    button(surface, refuel_rect, r_lbl, FONT_S, base=r_bg,
+           hover=can_refuel and refuel_rect.collidepoint(mouse_pos))
+    buttons["emergency_refuel"] = refuel_rect
+
+    close_rect = pygame.Rect(panel.right - 180, panel.bottom - 46, 160, 36)
+    button(surface, close_rect, "ปิด  (B / ESC)", FONT_S, base=(55, 58, 80),
            hover=close_rect.collidepoint(mouse_pos))
     buttons["close"] = close_rect
     return buttons
@@ -1478,20 +1547,24 @@ def draw_how_to_play(surface, mouse_pos):
     text(surface, "• พลังเจาะกระแทกพื้น (Ground Slam) แรงขึ้น 3.0 เท่า ทะลวงหินหนาได้ในพริบตา!",
          FONT_XS, (255, 215, 110), (c2.left + 16, c2.top + 106))
 
-    # ─── การ์ด 3: ปุ่ม E ───
+    # ─── การ์ด 3: ระบบโดรน & วิทยุร้านค้า ───
     c3 = pygame.Rect(panel.left + 16, c2.bottom + 8, panel.w - 32, 126)
     _panel(surface, c3, bg=(22, 34, 38), border=(45, 130, 120), alpha=235, radius=12)
-    text(surface, "3. ปุ่มปฏิสัมพันธ์ [ E ] (Interact, Shop & Floors)", FONT_M, (100, 235, 200),
+    text(surface, "3. โดรนขนส่ง & วิทยุร้านค้า [ R / B / E ]", FONT_M, (100, 235, 200),
          (c3.left + 16, c3.top + 9))
 
-    draw_key_badge(surface, "E", c3.left + 16, c3.top + 34, min_w=34, h=24, active=True)
-    text(surface, "ปุ่มอเนกประสงค์สำหรับซื้อของและเปิดประตูชั้น", FONT_XS, (180, 225, 220), (c3.left + 60, c3.top + 38))
+    draw_key_badge(surface, "R", c3.left + 16, c3.top + 34, min_w=28, h=24, active=True)
+    text(surface, "โดรนขายแร่", FONT_XS, (255, 225, 110), (c3.left + 50, c3.top + 38))
+    draw_key_badge(surface, "B", c3.left + 130, c3.top + 34, min_w=28, h=24, active=True)
+    text(surface, "วิทยุร้านค้า", FONT_XS, (140, 225, 255), (c3.left + 164, c3.top + 38))
+    draw_key_badge(surface, "E", c3.left + 248, c3.top + 34, min_w=28, h=24, active=True)
+    text(surface, "ปลดล็อคชั้น / ร้านค้าบนดิน", FONT_XS, (200, 230, 220), (c3.left + 282, c3.top + 38))
 
-    text(surface, "• ร้านค้า (Shop): จอดหน้าร้านบนผิวดิน แล้วกด [E] เพื่อเปิดร้านอัปเกรดและอู่แต่งรถ",
+    text(surface, "• กด [R] (หรือคลิกปุ่มจรวดบน HUD): เรียกดโรนมารับแร่ไปขายทันที ได้เงินทันใจโดยไม่ต้องขับกลับขึ้นมา!",
          FONT_XS, (215, 240, 235), (c3.left + 16, c3.top + 66))
-    text(surface, "• ปลดล็อคชั้น (Unlock Floor): ขับไปชิดประตูกั้นชั้น แล้วกด [E] เพื่อจ่ายเหรียญเปิดทางลง",
+    text(surface, "• กด [B] (หรือคลิกปุ่มร้านค้าบน HUD): เปิดวิทยุร้านค้า อัปเกรดรถ, ปลดล็อคชั้น และสั่งแอร์ดรอปน้ำมันฉุกเฉินได้ทุกที่",
          FONT_XS, (215, 240, 235), (c3.left + 16, c3.top + 86))
-    text(surface, "• ปิดหน้าต่าง: กด [E] หรือ [ESC] เพื่อปิดหน้าร้านค้าและกลับมาเล่นต่อทันที",
+    text(surface, "• กด [E]: ปลดล็อคชั้นเมื่ออยู่ใกล้ประตู หรือเปิดร้านค้าเมื่อจอดหน้าร้านบนผิวดิน",
          FONT_XS, (215, 240, 235), (c3.left + 16, c3.top + 106))
 
     # ─── การ์ด 4: เคล็ดลับการเอาชีวิตรอด ───

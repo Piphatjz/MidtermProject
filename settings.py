@@ -57,7 +57,7 @@ RES_DIAMOND = 3
 RES_FUEL = 4       # กระป๋องน้ำมัน – เก็บแล้วเติมพลังงานได้ทันที
 
 RESOURCE_VALUE = {
-    RES_COIN: 1,
+    RES_COIN: 2,   # ปรับจาก 1 -> 2 ให้คุ้มค่าความจุช่องเก็บของมากขึ้น
     RES_GOLD: 5,
     RES_DIAMOND: 20,
     RES_FUEL: 0,   # ไม่มีมูลค่าเป็นเหรียญ แต่เติมพลังงาน
@@ -106,7 +106,7 @@ CLASSIC_FLOORS = [
         "name": "หินแกรนิต & สายแร่ทอง (Granite Depths)",
         "min_depth": 21,
         "max_depth": 45,
-        "unlock_cost": 300,         # 300 เหรียญ
+        "unlock_cost": 80,          # ปรับลดจาก 300 -> 80 เหรียญ (ปลดล็อคได้ชัวร์แม้หักค่าอัพเกรดแล้ว)
         "desc": "หินแกรนิตแข็งปานกลาง ทองคำหนาแน่น และเริ่มพบเพชรแท้",
         "theme_color": (245, 195, 50),
     },
@@ -115,7 +115,7 @@ CLASSIC_FLOORS = [
         "name": "หุบเหวคริสตัล & อัญมณี (Crystal Caverns)",
         "min_depth": 46,
         "max_depth": 75,
-        "unlock_cost": 800,         # 800 เหรียญ
+        "unlock_cost": 220,         # ปรับลดจาก 800 -> 220 เหรียญ
         "desc": "ผลึกเพชรน้ำงาม แหล่งรวมอัญมณีล้ำค่าและถังน้ำมันโบราณ",
         "theme_color": (90, 215, 255),
     },
@@ -124,7 +124,7 @@ CLASSIC_FLOORS = [
         "name": "ลาวาใต้พิภพ & เพชรบริสุทธิ์ (Magma Bedrock)",
         "min_depth": 76,
         "max_depth": 110,
-        "unlock_cost": 1800,        # 1800 เหรียญ
+        "unlock_cost": 500,         # ปรับลดจาก 1800 -> 500 เหรียญ
         "desc": "ชั้นหินหนาแน่น แหล่งเพชรและขุมทรัพย์มูลค่ามหาศาล",
         "theme_color": (255, 115, 55),
     },
@@ -133,7 +133,7 @@ CLASSIC_FLOORS = [
         "name": "แกนพิภพลี้ลับ (Core Abyss)",
         "min_depth": 111,
         "max_depth": 150,
-        "unlock_cost": 3200,        # 3200 เหรียญ
+        "unlock_cost": 1000,        # ปรับลดจาก 3200 -> 1000 เหรียญ
         "desc": "แกนกลางโลก ทะเลทองคำและเพชรแท้ล้ำค่า",
         "theme_color": (195, 110, 255),
     },
@@ -142,7 +142,7 @@ CLASSIC_FLOORS = [
         "name": "มิติใต้พิภพไร้สิ้นสุด (Infinite Depths)",
         "min_depth": 151,
         "max_depth": 200,
-        "unlock_cost": 5000,        # 5000 เหรียญ
+        "unlock_cost": 1800,        # ปรับลดจาก 5000 -> 1800 เหรียญ
         "desc": "ความลึกระดับตำนาน ขุมทรัพย์ไร้ขีดจำกัด",
         "theme_color": (255, 80, 140),
     },
@@ -160,7 +160,7 @@ def get_floor_info(floor_num):
     step = 50
     min_d = prev_max + (extra_tiers - 1) * step + 1
     max_d = min_d + step - 1
-    cost = 5000 + extra_tiers * 2000
+    cost = 1800 + extra_tiers * 800
 
     colors = [
         (255, 215, 0),

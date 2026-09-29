@@ -157,6 +157,26 @@ class ParticleSystem:
             ])
             self.particles.append(Particle(cx, cy, vx, vy, life, size, c, gravity=200.0))
 
+    def spawn_drone_delivery(self, x, y):
+        """อนุภาคโดรนขนส่งแร่พุ่งขึ้นสู่ท้องฟ้าพร้อมประกายเหรียญทอง"""
+        for _ in range(14):
+            vx = self.rng.uniform(-30, 30)
+            vy = self.rng.uniform(-280, -130)
+            life = self.rng.uniform(0.4, 0.75)
+            size = self.rng.uniform(3.0, 5.5)
+            c = self.rng.choice([
+                (80, 220, 255),   # ฟ้าไอพ่น
+                (255, 215, 60),   # เหลืองทองเหรียญ
+                (255, 255, 255),  # ขาวประกาย
+            ])
+            self.particles.append(Particle(x, y, vx, vy, life, size, c, gravity=-60.0))
+        for _ in range(10):
+            vx = self.rng.uniform(-65, 65)
+            vy = self.rng.uniform(-70, 25)
+            life = self.rng.uniform(0.3, 0.6)
+            size = self.rng.uniform(2.5, 4.5)
+            self.particles.append(Particle(x, y, vx, vy, life, size, (255, 220, 70), gravity=80.0))
+
     def spawn_plasma_spark(self, x, y):
         """สะเก็ดประกายไฟพลาสม่าร้อนแรงสูง (Plasma Melter)"""
         for _ in range(4):

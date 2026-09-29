@@ -15,7 +15,7 @@ import pygame
 import settings as S
 import assets
 import ui
-from game import Game
+from game import Game, PLAYING, SHOP
 from world import World
 from vehicle import Vehicle
 from particles import ParticleSystem
@@ -346,6 +346,41 @@ def run_tests():
     b_row_flr2 = S.SURFACE_ROW + S.CLASSIC_FLOORS[1]["max_depth"]
     assert c_loaded.world.tiles[b_row_flr2][2] == S.T_BARRIER
     print("  -> Classic mode barrier mechanics, unlock flow, and persistence verified OK.")
+
+    # ==================== Test Cargo Drone & Radio Shop ====================
+    print("Testing Cargo Drone & Radio Shop Features...")
+    # 1. Cargo Drone delivery
+    c_game.vehicle.coins = 0
+    c_game.vehicle.cargo[S.RES_GOLD] = 2
+    c_game.vehicle.cargo[S.RES_DIAMOND] = 1
+    c_game.vehicle.cargo_count = 3
+    expected_earn = 2 * S.RESOURCE_VALUE[S.RES_GOLD] + 1 * S.RESOURCE_VALUE[S.RES_DIAMOND]
+
+    c_game.call_cargo_drone()
+    assert c_game.vehicle.cargo_count == 0, "Cargo count must be 0 after drone sell"
+    assert c_game.vehicle.coins == expected_earn, f"Coins must be {expected_earn}, got {c_game.vehicle.coins}"
+
+    # 2. Radio Shop toggle from deep underground
+    c_game.state = PLAYING
+    c_game.vehicle.y = 100 * S.TILE  # Deep underground
+    c_game.open_radio_shop()
+    assert c_game.state == SHOP, "Radio shop must open SHOP state regardless of vehicle depth"
+
+    # 3. Emergency Fuel Airdrop
+    c_game.vehicle.energy = 10.0
+    c_game.vehicle.coins = 50
+    c_game.buy_emergency_fuel()
+    assert c_game.vehicle.coins == 25, "Emergency fuel must cost 25 coins"
+    assert c_game.vehicle.energy >= 60.0, "Emergency fuel must restore energy by at least 50"
+
+    # 4. HUD buttons for Drone and Shop
+    hud_buttons = ui.draw_hud(screen, c_game.vehicle, depth=100,
+                              mouse_pos=(100, 100),
+                              game_mode=c_game.game_mode,
+                              unlocked_floor=c_game.unlocked_floor)
+    assert "drone" in hud_buttons, "HUD must provide 'drone' button"
+    assert "shop" in hud_buttons, "HUD must provide 'shop' button"
+    print("  -> Cargo drone delivery, radio shop, and emergency fuel verified OK.")
 
     # Clean up test save
     if SM.save_exists():
