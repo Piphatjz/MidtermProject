@@ -209,78 +209,120 @@ def run_tests():
     assert v_seismic.drill_reach == 2, "Seismic Hammer must have reach 2 from Tier 1!"
     print("  -> Vehicle chassis modifiers and drill head abilities verified OK.")
 
-    # Test 9: Garage Menu UI & Interactive State Transitions
-    print("Testing Garage Menu UI & Transitions...")
+    # Test 9: Garage Menu UI, Surface Shop Access & Progression/Coin Unlocks
+    print("Testing Garage Menu UI, Surface Shop Access & Progression/Coin Unlocks...")
     # Render all 3 garage tabs
     ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="color")
     ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="type")
     ui.draw_garage_menu(screen, v_titan, (100, 100), active_tab="drill")
 
-    # Test state transition MENU -> GARAGE
+    # Verify Garage button is removed from Main Menu
     test_game = Game(screen)
     assert test_game.state == "menu"
     test_game.draw()
-    assert "garage" in test_game.buttons
+    assert "garage" not in test_game.buttons, "Garage button must not appear on Main Menu!"
 
-    # Simulate clicking 'garage' button
-    garage_btn = test_game.buttons["garage"]
-    click_evt = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=garage_btn.center)
-    test_game.handle_event(click_evt)
-    assert test_game.state == "garage", "Must transition to GARAGE from menu!"
+    # Start a new game and verify default starter loadout
+    test_game.new_game()
+    assert test_game.vehicle.color_id == "yellow"
+    assert test_game.vehicle.vehicle_type == "standard"
+    assert test_game.vehicle.drill_head == "spiral"
+    assert test_game.vehicle.unlocked_colors == {"yellow"}
+    assert test_game.vehicle.unlocked_types == {"standard"}
+    assert test_game.vehicle.unlocked_drills == {"spiral"}
+
+    # Park at surface shop and press E to open SHOP -> GARAGE
+    test_game.vehicle.x = S.SHOP_COL * S.TILE + S.TILE / 2.0
+    test_game.vehicle.y = (S.SURFACE_ROW - 1) * S.TILE + S.TILE / 2.0
+    e_evt = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_e)
+    test_game.handle_event(e_evt)
+    assert test_game.state == "shop", "Pressing E at surface shop must open SHOP!"
+    test_game.draw()
+    assert "tab_garage" in test_game.buttons
+    assert "emergency_refuel" not in test_game.buttons, "Emergency fuel airdrop must be removed from Shop!"
+
+    # Transition SHOP -> GARAGE
+    click_gar = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["tab_garage"].center)
+    test_game.handle_event(click_gar)
+    assert test_game.state == "garage", "Must transition to GARAGE from surface SHOP!"
     test_game.draw()
 
-    # In GARAGE: click tab_type
+    # In GARAGE: switch to tab_type
     assert "tab_type" in test_game.buttons
     click_type_tab = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["tab_type"].center)
     test_game.handle_event(click_type_tab)
     assert test_game.garage_tab == "type"
     test_game.draw()
 
-    # Click titan type
+    # 1) Attempt to select locked 'titan' without meeting requirement (requires capacity/energy Lv.3)
     assert "type_titan" in test_game.buttons
     click_titan = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["type_titan"].center)
     test_game.handle_event(click_titan)
-    assert test_game.vehicle.vehicle_type == "titan"
+    assert test_game.vehicle.vehicle_type == "standard", "Locked chassis must not equip before meeting requirement!"
 
-    # Click tab_drill
+    # 2) Meet requirement (capacity Lv.3) but insufficient coins (< 300 G)
+    test_game.vehicle.levels["capacity"] = 3
+    test_game.vehicle.coins = 100
+    test_game.handle_event(click_titan)
+    assert test_game.vehicle.vehicle_type == "standard", "Locked chassis must not unlock without enough coins!"
+
+    # 3) Provide enough coins (350 G) -> should unlock, deduct 300 G, and equip 'titan'
+    test_game.vehicle.coins = 350
+    test_game.handle_event(click_titan)
+    assert test_game.vehicle.vehicle_type == "titan", "Titan must be unlocked and equipped!"
+    assert test_game.vehicle.coins == 50, f"Expected 50 coins remaining after 300 G purchase, got {test_game.vehicle.coins}"
+    assert "titan" in test_game.vehicle.unlocked_types
+
+    # Switch to tab_drill and test 'diamond' drill head unlock (requires 3 diamonds & power Lv.2+ & 450 G)
     click_drill_tab = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["tab_drill"].center)
     test_game.handle_event(click_drill_tab)
     assert test_game.garage_tab == "drill"
     test_game.draw()
 
-    # Click drill_diamond
-    assert "drill_diamond" in test_game.buttons
     click_diamond = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["drill_diamond"].center)
     test_game.handle_event(click_diamond)
-    assert test_game.vehicle.drill_head == "diamond"
+    assert test_game.vehicle.drill_head == "spiral", "Diamond drill must remain locked before collecting 3 diamonds!"
 
-    # Click apply
+    test_game.vehicle.total_diamonds_collected = 3
+    test_game.vehicle.levels["power"] = 2
+    test_game.vehicle.coins = 500
+    test_game.handle_event(click_diamond)
+    assert test_game.vehicle.drill_head == "diamond", "Diamond drill must unlock and equip once conditions + coins are met!"
+    assert test_game.vehicle.coins == 50
+    assert "diamond" in test_game.vehicle.unlocked_drills
+
+    # Click apply -> returns to SHOP
     assert "apply" in test_game.buttons
     click_apply = pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=test_game.buttons["apply"].center)
     test_game.handle_event(click_apply)
-    assert test_game.state == "menu", "Must return to previous state (MENU) after apply!"
+    assert test_game.state == "shop", "Must return to previous state (SHOP) after apply!"
+    print("  -> Garage surface shop access, progression conditions, and coin purchases verified OK.")
 
-    # New game should inherit selected vehicle customizations
-    test_game.new_game()
-    assert test_game.vehicle.vehicle_type == "titan"
-    assert test_game.vehicle.drill_head == "diamond"
-    print("  -> Garage menu navigation, selection, and application verified OK.")
-
-    # Test 10: Customization Save & Load Persistence
-    print("Testing Customization Save & Load Persistence...")
+    # Test 10: Customization & Unlocks Save & Load Persistence
+    print("Testing Customization & Unlocks Save & Load Persistence...")
+    test_game.vehicle.max_depth_reached = 42
+    test_game.vehicle.unlocked_colors.add("carbon")
     test_game.vehicle.color_id = "carbon"
-    test_game.vehicle.vehicle_type = "hover"
-    test_game.vehicle.drill_head = "plasma"
     test_game.vehicle.recalc_stats()
     test_game.save_and_quit()
 
     loaded_game = Game(screen)
     loaded_game.load_game()
     assert loaded_game.vehicle.color_id == "carbon"
-    assert loaded_game.vehicle.vehicle_type == "hover"
-    assert loaded_game.vehicle.drill_head == "plasma"
-    assert loaded_game.vehicle.power > v_std.power * 1.5
-    print("  -> Customization saved and restored accurately.")
+    assert loaded_game.vehicle.vehicle_type == "titan"
+    assert loaded_game.vehicle.drill_head == "diamond"
+    assert loaded_game.vehicle.max_depth_reached == 42
+    assert loaded_game.vehicle.total_diamonds_collected == 3
+    assert "titan" in loaded_game.vehicle.unlocked_types
+    assert "diamond" in loaded_game.vehicle.unlocked_drills
+
+    # Starting a brand new game must reset to default starter loadout
+    fresh_game = Game(screen)
+    fresh_game.new_game()
+    assert fresh_game.vehicle.color_id == "yellow"
+    assert fresh_game.vehicle.vehicle_type == "standard"
+    assert fresh_game.vehicle.drill_head == "spiral"
+    print("  -> Customization & unlock progression saved, restored, and reset on new game accurately.")
 
     # Test 11: Classic Endless Mode & Floor Unlocking
     print("Testing Classic Endless Mode & Floor Unlocking...")
@@ -347,40 +389,58 @@ def run_tests():
     assert c_loaded.world.tiles[b_row_flr2][2] == S.T_BARRIER
     print("  -> Classic mode barrier mechanics, unlock flow, and persistence verified OK.")
 
-    # ==================== Test Cargo Drone & Radio Shop ====================
-    print("Testing Cargo Drone & Radio Shop Features...")
-    # 1. Cargo Drone delivery
-    c_game.vehicle.coins = 0
-    c_game.vehicle.cargo[S.RES_GOLD] = 2
-    c_game.vehicle.cargo[S.RES_DIAMOND] = 1
-    c_game.vehicle.cargo_count = 3
-    expected_earn = 2 * S.RESOURCE_VALUE[S.RES_GOLD] + 1 * S.RESOURCE_VALUE[S.RES_DIAMOND]
-
-    c_game.call_cargo_drone()
-    assert c_game.vehicle.cargo_count == 0, "Cargo count must be 0 after drone sell"
-    assert c_game.vehicle.coins == expected_earn, f"Coins must be {expected_earn}, got {c_game.vehicle.coins}"
-
-    # 2. Radio Shop toggle from deep underground
-    c_game.state = PLAYING
-    c_game.vehicle.y = 100 * S.TILE  # Deep underground
-    c_game.open_radio_shop()
-    assert c_game.state == SHOP, "Radio shop must open SHOP state regardless of vehicle depth"
-
-    # 3. Emergency Fuel Airdrop
-    c_game.vehicle.energy = 10.0
-    c_game.vehicle.coins = 50
-    c_game.buy_emergency_fuel()
-    assert c_game.vehicle.coins == 25, "Emergency fuel must cost 25 coins"
-    assert c_game.vehicle.energy >= 60.0, "Emergency fuel must restore energy by at least 50"
-
-    # 4. HUD buttons for Drone and Shop
+    # ==================== Test HUD Cleanliness, Stalled Behavior, Dive Count & Vector Goal Icons ====================
+    print("Testing HUD Cleanliness, Stalled Behavior, Single-Count Gravity Slam & Vector Goal Icons...")
     hud_buttons = ui.draw_hud(screen, c_game.vehicle, depth=100,
                               mouse_pos=(100, 100),
                               game_mode=c_game.game_mode,
                               unlocked_floor=c_game.unlocked_floor)
-    assert "drone" in hud_buttons, "HUD must provide 'drone' button"
-    assert "shop" in hud_buttons, "HUD must provide 'shop' button"
-    print("  -> Cargo drone delivery, radio shop, and emergency fuel verified OK.")
+    assert "drone" not in hud_buttons, "HUD must not provide removed 'drone' button"
+    assert "shop" not in hud_buttons, "HUD must not provide removed remote 'shop' button"
+
+    import missions as M
+    for gkey in ["diamonds", "gold", "depth", "drill_lv", "tier", "coins", "fuel", "dives"]:
+        lbl = M.format_goal_label(gkey, 5)
+        prog = M.format_goal_progress(gkey, 2, 5)
+        ui.draw_icon_goal(screen, gkey, (10, 10, 16, 16))
+        for bad_ch in ["💎", "🪙", "⬇️", "⛏", "📦", "💰", "⛽", "💥"]:
+            assert bad_ch not in lbl and bad_ch not in prog, f"Emoji found in mission text for {gkey}"
+
+    # Verify Gravity Slam counts only once per dive impact across multiple drilling frames
+    m_dive = Game(screen)
+    m_dive.new_game()
+    col_d, row_d = m_dive.vehicle.grid_pos()
+    m_dive.world.tiles[row_d + 1][col_d] = S.T_ROCK
+    m_dive.world.hp[row_d + 1][col_d] = 18.0
+    m_dive.world.max_hp[row_d + 1][col_d] = 18.0
+    m_dive.vehicle.levels["power"] = 2
+    m_dive.vehicle.recalc_stats()
+    m_dive.vehicle.grav_charge = 1.0
+    dive_counter = [0]
+    m_dive.vehicle.on_dive_performed = lambda: dive_counter.__setitem__(0, dive_counter[0] + 1)
+    for _ in range(15):
+        m_dive.vehicle.update(0.016, m_dive.world, (0, 1), m_dive.particles, shift_pressed=True)
+    assert dive_counter[0] == 1, f"Expected 1 dive count per slam impact, got {dive_counter[0]}"
+
+    # Verify Mission Mode stalled state underground triggers GAME_OVER
+    m_dive.vehicle.y = (S.SURFACE_ROW + 15) * S.TILE
+    m_dive.vehicle.energy = 0.0
+    m_dive.vehicle.stalled = True
+    m_dive.update(0.016)
+    assert m_dive.state == "game_over", "Mission mode must trigger GAME_OVER when stalled underground"
+
+    # Verify Classic Mode emergency tow when stalled underground
+    c_game.state = PLAYING
+    c_game.vehicle.y = (S.SURFACE_ROW + 20) * S.TILE
+    c_game.vehicle.coins = 0
+    c_game.vehicle.cargo = {S.RES_COIN: 0, S.RES_GOLD: 0, S.RES_DIAMOND: 0}
+    c_game.vehicle.cargo_count = 0
+    c_game.vehicle.energy = 0.0
+    c_game.vehicle.stalled = True
+    c_game.update(0.016)
+    assert c_game.state == PLAYING, "Classic mode should never Game Over on stall"
+    assert not c_game.vehicle.stalled and c_game.vehicle.energy == c_game.vehicle.max_energy
+    print("  -> HUD cleanliness, stalled behavior, single-count Gravity Slam, and vector goal icons verified OK.")
 
     # Clean up test save
     if SM.save_exists():

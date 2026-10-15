@@ -177,38 +177,38 @@ MISSION_POOL = [
 
 
 def format_goal_label(key, target):
-    """ส่งคืนข้อความเป้าหมายแบบสั้นพร้อมไอคอน"""
+    """ส่งคืนข้อความเป้าหมายแบบสั้น (ไม่มี Emoji ป้องกันกล่องสี่เหลี่ยม)"""
     labels = {
-        "diamonds": f"💎 เพชร {target} เม็ด",
-        "gold": f"🪙 ทอง {target} ก้อน",
-        "depth": f"⬇️ ลึก {target} ม.",
-        "drill_lv": f"⛏️ หัวขุด Lv.{target}",
-        "tier": f"📦 รถ Tier {target}",
-        "coins": f"💰 สะสม {target:,} 🪙",
-        "fuel": f"⛽ น้ำมัน {target} กระป๋อง",
-        "dives": f"💥 พุ่งดิ่ง {target} ครั้ง",
+        "diamonds": f"เพชร {target} เม็ด",
+        "gold": f"ทองคำ {target} ก้อน",
+        "depth": f"ขุดลึก {target} ม.",
+        "drill_lv": f"หัวขุด Lv.{target}",
+        "tier": f"รถขุด Tier {target}",
+        "coins": f"สะสม {target:,} เหรียญ",
+        "fuel": f"น้ำมัน {target} กระป๋อง",
+        "dives": f"พุ่งดิ่ง {target} ครั้ง",
     }
     return labels.get(key, f"{key}: {target}")
 
 
 def format_goal_progress(key, current, target):
-    """ส่งคืนข้อความความคืบหน้าปัจจุบัน / เป้าหมาย"""
+    """ส่งคืนข้อความความคืบหน้าปัจจุบัน / เป้าหมาย (กระชับ ชัดเจน ไม่ถูกตัด)"""
     if key == "drill_lv":
-        return f"⛏️ หัวขุด Lv.{current}/{target}"
+        return f"หัวขุด Lv.{current}/{target}"
     elif key == "tier":
-        return f"📦 Tier {current}/{target}"
+        return f"รถ Tier {current}/{target}"
     elif key == "depth":
-        return f"⬇️ {current}/{target} ม."
+        return f"ลึก {current}/{target} ม."
     elif key == "coins":
-        return f"💰 {current:,}/{target:,}"
+        return f"{current:,}/{target:,} G"
     elif key == "diamonds":
-        return f"💎 {current}/{target}"
+        return f"เพชร {current}/{target}"
     elif key == "gold":
-        return f"🪙 {current}/{target}"
+        return f"ทอง {current}/{target}"
     elif key == "fuel":
-        return f"⛽ {current}/{target}"
+        return f"น้ำมัน {current}/{target}"
     elif key == "dives":
-        return f"💥 {current}/{target}"
+        return f"พุ่งดิ่ง {current}/{target}"
     return f"{current}/{target}"
 
 
@@ -232,6 +232,7 @@ class Mission:
             "fuel": 0,
             "dives": 0,
         }
+        self.notified_goals = set()
 
     def update_from_game(self, vehicle, depth):
         """อัปเดตสถิติที่ขึ้นกับยานพาหนะและตำแหน่ง"""
@@ -252,6 +253,15 @@ class Mission:
     def add_dive(self):
         """บันทึกการทำ Gravity Slam หรือพุ่งดิ่ง"""
         self.progress["dives"] += 1
+
+    def pop_newly_completed_goals(self):
+        """คืนรายการข้อความเป้าหมายที่เพิ่งบรรลุใหม่ในเฟรมนี้ (ไม่แจ้งซ้ำ)"""
+        newly_met = []
+        for k, target in self.goals.items():
+            if self.is_goal_met(k) and k not in self.notified_goals:
+                self.notified_goals.add(k)
+                newly_met.append(format_goal_label(k, target))
+        return newly_met
 
     def is_goal_met(self, key):
         target = self.goals.get(key, 0)
@@ -302,6 +312,7 @@ class Mission:
         }
         m = cls(bp)
         m.progress = data.get("progress", m.progress)
+        m.notified_goals = {k for k in m.goals if m.is_goal_met(k)}
         return m
 
 

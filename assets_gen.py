@@ -642,6 +642,19 @@ def generate_sound_effects():
         samples.append(wave_val * env * 0.7)
     write_wav("boost.wav", samples, sr)
 
+    # 12. click.wav - Crisp UI button click
+    dur = 0.06
+    n = int(sr * dur)
+    samples = []
+    for i in range(n):
+        t = i / sr
+        f = 950 - 350 * (t / dur)
+        wave_val = math.sin(2 * math.pi * f * t) + 0.3 * math.sin(2 * math.pi * f * 2 * t)
+        env = math.exp(-t * 45)
+        samples.append(wave_val * env * 0.45)
+    write_wav("click.wav", samples, sr)
+
+
 
 
 def build_all_assets():

@@ -258,6 +258,9 @@ VEHICLE_COLORS = {
         "highlight": (255, 220, 80),
         "tread": (50, 52, 58),
         "glass": (70, 170, 240),
+        "unlock_cost": 0,
+        "unlock_req": None,
+        "unlock_desc": "ปลดล็อคเริ่มต้น",
     },
     "blue": {
         "name": "ฟ้าไซเบอร์",
@@ -267,6 +270,9 @@ VEHICLE_COLORS = {
         "highlight": (120, 205, 255),
         "tread": (45, 50, 62),
         "glass": (100, 255, 240),
+        "unlock_cost": 50,
+        "unlock_req": {"type": "depth", "value": 10},
+        "unlock_desc": "ลงถึงความลึก 10ม.",
     },
     "red": {
         "name": "แดงเพลิง",
@@ -276,6 +282,9 @@ VEHICLE_COLORS = {
         "highlight": (255, 120, 120),
         "tread": (48, 48, 52),
         "glass": (255, 200, 100),
+        "unlock_cost": 50,
+        "unlock_req": {"type": "depth", "value": 10},
+        "unlock_desc": "ลงถึงความลึก 10ม.",
     },
     "green": {
         "name": "เขียวมรกต",
@@ -285,6 +294,9 @@ VEHICLE_COLORS = {
         "highlight": (125, 245, 160),
         "tread": (45, 52, 46),
         "glass": (255, 240, 110),
+        "unlock_cost": 100,
+        "unlock_req": {"type": "depth", "value": 25},
+        "unlock_desc": "ลงถึงความลึก 25ม.",
     },
     "purple": {
         "name": "ม่วงอเมทิสต์",
@@ -294,6 +306,9 @@ VEHICLE_COLORS = {
         "highlight": (225, 145, 255),
         "tread": (48, 45, 56),
         "glass": (100, 230, 255),
+        "unlock_cost": 120,
+        "unlock_req": {"type": "depth", "value": 30},
+        "unlock_desc": "ลงถึงความลึก 30ม.",
     },
     "carbon": {
         "name": "ดำคาร์บอน",
@@ -303,6 +318,9 @@ VEHICLE_COLORS = {
         "highlight": (130, 138, 155),
         "tread": (28, 30, 35),
         "glass": (255, 100, 70),
+        "unlock_cost": 150,
+        "unlock_req": {"type": "depth", "value": 40},
+        "unlock_desc": "ลงถึงความลึก 40ม.",
     },
     "white": {
         "name": "ขาวเงินหิมะ",
@@ -312,6 +330,9 @@ VEHICLE_COLORS = {
         "highlight": (255, 255, 255),
         "tread": (50, 55, 65),
         "glass": (80, 190, 255),
+        "unlock_cost": 180,
+        "unlock_req": {"type": "depth", "value": 50},
+        "unlock_desc": "ลงถึงความลึก 50ม.",
     },
     "orange": {
         "name": "ส้มเปลวสุริยัน",
@@ -321,6 +342,9 @@ VEHICLE_COLORS = {
         "highlight": (255, 185, 90),
         "tread": (52, 48, 45),
         "glass": (90, 240, 255),
+        "unlock_cost": 200,
+        "unlock_req": {"type": "depth", "value": 60},
+        "unlock_desc": "ลงถึงความลึก 60ม.",
     },
 }
 
@@ -339,6 +363,9 @@ VEHICLE_TYPES = {
         "move_drain_mult": 1.0,
         "grav_charge_mult": 1.0,
         "badge_color": (245, 185, 40),
+        "unlock_cost": 0,
+        "unlock_req": None,
+        "unlock_desc": "ปลดล็อคเริ่มต้น",
     },
     "scout": {
         "name": "รถสำรวจความเร็วสูง (Swift Scout)",
@@ -351,6 +378,9 @@ VEHICLE_TYPES = {
         "move_drain_mult": 0.80,
         "grav_charge_mult": 1.0,
         "badge_color": (60, 190, 255),
+        "unlock_cost": 150,
+        "unlock_req": {"type": "depth", "value": 15},
+        "unlock_desc": "ลงถึงความลึก 15ม.",
     },
     "titan": {
         "name": "รถขุดยักษ์ไททัน (Titan Colossus)",
@@ -363,6 +393,9 @@ VEHICLE_TYPES = {
         "move_drain_mult": 1.15,
         "grav_charge_mult": 0.90,
         "badge_color": (255, 120, 50),
+        "unlock_cost": 300,
+        "unlock_req": {"type": "capacity_or_energy_lv", "value": 3},
+        "unlock_desc": "อัปเกรดถัง หรือ พลังงาน ถึง Lv.3",
     },
     "hover": {
         "name": "ยานโฮเวอร์ใต้พิภพ (Aero Hoverpod)",
@@ -375,6 +408,9 @@ VEHICLE_TYPES = {
         "move_drain_mult": 0.90,
         "grav_charge_mult": 2.0,
         "badge_color": (160, 90, 255),
+        "unlock_cost": 450,
+        "unlock_req": {"type": "depth", "value": 35},
+        "unlock_desc": "ลงถึงความลึก 35ม.",
     },
 }
 
@@ -396,6 +432,9 @@ DRILL_HEADS = {
         "extra_loot_chance": 0.0,
         "badge_color": (185, 195, 205),
         "particle_theme": "dirt",
+        "unlock_cost": 0,
+        "unlock_req": None,
+        "unlock_desc": "ปลดล็อคเริ่มต้น",
     },
     "diamond": {
         "name": "หัวเจาะเพชรไทเทเนียม",
@@ -411,6 +450,9 @@ DRILL_HEADS = {
         "extra_loot_chance": 0.0,
         "badge_color": (90, 220, 255),
         "particle_theme": "diamond",
+        "unlock_cost": 450,
+        "unlock_req": {"type": "diamond_and_drill", "diamonds": 3, "drill_lv": 2},
+        "unlock_desc": "เก็บเพชรครบ 3 เม็ด และหัวขุด Lv.2+",
     },
     "plasma": {
         "name": "หัวตัดเลเซอร์พลาสม่า",
@@ -426,6 +468,9 @@ DRILL_HEADS = {
         "extra_loot_chance": 0.0,
         "badge_color": (255, 95, 40),
         "particle_theme": "plasma",
+        "unlock_cost": 350,
+        "unlock_req": {"type": "drill_lv", "value": 3},
+        "unlock_desc": "อัปเกรดหัวขุดถึง Lv.3",
     },
     "vortex": {
         "name": "หัวสว่านแม่เหล็กดูดแร่",
@@ -441,6 +486,9 @@ DRILL_HEADS = {
         "extra_loot_chance": 0.35,      # โอกาสสุ่มเจอแร่/น้ำมันพิเศษ
         "badge_color": (200, 110, 255),
         "particle_theme": "vortex",
+        "unlock_cost": 200,
+        "unlock_req": {"type": "drill_lv", "value": 2},
+        "unlock_desc": "อัปเกรดหัวขุดถึง Lv.2",
     },
     "seismic": {
         "name": "หัวกระแทกคลื่นสั่นสะเทือน",
@@ -456,6 +504,9 @@ DRILL_HEADS = {
         "extra_loot_chance": 0.0,
         "badge_color": (240, 180, 80),
         "particle_theme": "seismic",
+        "unlock_cost": 600,
+        "unlock_req": {"type": "tier_or_drill", "tier": 2, "drill_lv": 4},
+        "unlock_desc": "ถึงระดับรวม Tier 2 หรือหัวขุด Lv.4",
     },
 }
 

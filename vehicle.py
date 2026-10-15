@@ -54,12 +54,116 @@ class Vehicle:
         self.dive_power = 0.0           # อัตราความแรงขณะพุ่งดิ่ง
         self._grav_sound_timer = 0.0    # จับเวลาเล่นเสียงชาร์จศักย์
         self._dive_particle_timer = 0.0 # จับเวลาสร้างอนุภาคลมขณะพุ่งดิ่ง
-        # ตัวเลือกการปรับแต่งรถขุด (Customization)
+        # ตัวเลือกการปรับแต่งรถขุด (Customization) และสถานะการปลดล็อค
         self.color_id = color_id or getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
         self.vehicle_type = vehicle_type or getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
         self.drill_head = drill_head or getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
 
+        # สถิติความก้าวหน้าและรายการอุปกรณ์ที่ปลดล็อคแล้ว (Progression Unlocks)
+        self.max_depth_reached = 0
+        self.total_diamonds_collected = 0
+        self.unlocked_colors = {"yellow", self.color_id}
+        self.unlocked_types = {"standard", self.vehicle_type}
+        self.unlocked_drills = {"spiral", self.drill_head}
+
         self.recalc_stats()
+
+    # ------------------------------------------------------------------
+    def _get_category_info(self, category, item_id):
+        if category == "color":
+            return S.VEHICLE_COLORS.get(item_id, {}), self.unlocked_colors
+        elif category == "type":
+            return S.VEHICLE_TYPES.get(item_id, {}), self.unlocked_types
+        elif category == "drill":
+            return S.DRILL_HEADS.get(item_id, {}), self.unlocked_drills
+        return {}, set()
+
+    def is_item_unlocked(self, category, item_id):
+        """ตรวจสอบว่าไอเทมในหมวดหมู่ (color / type / drill) ถูกซื้อปลดล็อคแล้วหรือยัง"""
+        _, unlocked_set = self._get_category_info(category, item_id)
+        return item_id in unlocked_set
+
+    def check_unlock_condition(self, category, item_id):
+        """ตรวจสอบเงื่อนไขความก้าวหน้าในการปลดล็อคไอเทม
+        คืนค่า (cond_met: bool, req_desc: str, cost: int)"""
+        cfg, unlocked_set = self._get_category_info(category, item_id)
+        cost = int(cfg.get("unlock_cost", 0))
+        req = cfg.get("unlock_req", None)
+        desc = cfg.get("unlock_desc", "ปลดล็อคเริ่มต้น")
+
+        if item_id in unlocked_set or req is None:
+            return True, desc, cost
+
+        rtype = req.get("type")
+        if rtype == "depth":
+            target = req.get("value", 0)
+            return self.max_depth_reached >= target, f"{desc} ({self.max_depth_reached}/{target}ม.)", cost
+        elif rtype == "drill_lv":
+            target = req.get("value", 1)
+            cur = self.levels.get("power", 1)
+            return cur >= target, f"{desc} (ปัจจุบัน Lv.{cur})", cost
+        elif rtype == "capacity_or_energy_lv":
+            target = req.get("value", 1)
+            cap_lv = self.levels.get("capacity", 1)
+            en_lv = self.levels.get("energy", 1)
+            return (cap_lv >= target or en_lv >= target), f"{desc} (ถัง Lv.{cap_lv}/พลังงาน Lv.{en_lv})", cost
+        elif rtype == "diamond_and_drill":
+            t_dia = req.get("diamonds", 3)
+            t_drl = req.get("drill_lv", 2)
+            cur_drl = self.levels.get("power", 1)
+            met = (self.total_diamonds_collected >= t_dia and cur_drl >= t_drl)
+            return met, f"เพชร {self.total_diamonds_collected}/{t_dia} เม็ด & หัวขุด Lv.{cur_drl}/{t_drl}", cost
+        elif rtype == "tier_or_drill":
+            t_tier = req.get("tier", 2)
+            t_drl = req.get("drill_lv", 4)
+            cur_tier = self.overall_tier()
+            cur_drl = self.levels.get("power", 1)
+            met = (cur_tier >= t_tier or cur_drl >= t_drl)
+            return met, f"Tier {cur_tier}/{t_tier} หรือ หัวขุด Lv.{cur_drl}/{t_drl}", cost
+
+        return True, desc, cost
+
+    def unlock_and_equip(self, category, item_id):
+        """พยายามปลดล็อค (หักเหรียญหากผ่านเงื่อนไข) และสวมใส่ไอเทม
+        คืนค่า (success: bool, status: str, message: str)"""
+        cfg, unlocked_set = self._get_category_info(category, item_id)
+        if not cfg:
+            return False, "invalid", "ไม่พบข้อมูลอุปกรณ์"
+
+        item_name = cfg.get("name", item_id)
+
+        # หากปลดล็อคแล้ว สวมใส่ได้ทันที
+        if item_id in unlocked_set:
+            if category == "color":
+                self.color_id = item_id
+            elif category == "type":
+                self.vehicle_type = item_id
+            elif category == "drill":
+                self.drill_head = item_id
+            self.recalc_stats()
+            return True, "equipped", f"ติดตั้ง: {item_name}"
+
+        # ยังไม่ปลดล็อค -> ตรวจเงื่อนไขความก้าวหน้าก่อน
+        cond_met, req_desc, cost = self.check_unlock_condition(category, item_id)
+        if not cond_met:
+            return False, "locked_cond", f"ยังไม่ผ่านเงื่อนไข: {req_desc}"
+
+        # ผ่านเงื่อนไขแล้ว -> ตรวจเหรียญ
+        if self.coins < cost:
+            diff = cost - self.coins
+            return False, "locked_coins", f"เหรียญไม่พอซื้อ {item_name}! ต้องใช้ {cost:,} G (ขาดอีก {diff:,} G)"
+
+        # หักเหรียญ ปลดล็อค และสวมใส่ทันที
+        self.coins -= cost
+        unlocked_set.add(item_id)
+        if category == "color":
+            self.color_id = item_id
+        elif category == "type":
+            self.vehicle_type = item_id
+        elif category == "drill":
+            self.drill_head = item_id
+        self.recalc_stats()
+        return True, "purchased", f"ปลดล็อคและติดตั้ง {item_name} สำเร็จ! (-{cost:,} G)"
 
     # ------------------------------------------------------------------
     def overall_tier(self):
@@ -145,6 +249,8 @@ class Vehicle:
             return False
         self.cargo[res_type] += 1
         self.cargo_count += 1
+        if res_type == S.RES_DIAMOND:
+            self.total_diamonds_collected = getattr(self, "total_diamonds_collected", 0) + 1
         return True
 
     def cargo_value(self):
@@ -221,9 +327,19 @@ class Vehicle:
         if not hasattr(self, "grav_charge"):          self.grav_charge = 0.0
         if not hasattr(self, "is_diving"):            self.is_diving = False
         if not hasattr(self, "dive_power"):           self.dive_power = 0.0
+        if not hasattr(self, "_slam_triggered"):      self._slam_triggered = False
         if not hasattr(self, "color_id"):             self.color_id = "yellow"
         if not hasattr(self, "vehicle_type"):         self.vehicle_type = "standard"
         if not hasattr(self, "drill_head"):           self.drill_head = "spiral"
+        if not hasattr(self, "max_depth_reached"):    self.max_depth_reached = 0
+        if not hasattr(self, "total_diamonds_collected"): self.total_diamonds_collected = 0
+        if not hasattr(self, "unlocked_colors"):      self.unlocked_colors = {"yellow", self.color_id}
+        if not hasattr(self, "unlocked_types"):       self.unlocked_types = {"standard", self.vehicle_type}
+        if not hasattr(self, "unlocked_drills"):      self.unlocked_drills = {"spiral", self.drill_head}
+
+        cur_depth = max(0, int(self.y // S.TILE) - S.SURFACE_ROW)
+        if cur_depth > self.max_depth_reached:
+            self.max_depth_reached = cur_depth
 
         if self.energy <= 0:
             self.stalled = True
@@ -242,12 +358,10 @@ class Vehicle:
 
         dir_x, dir_y = self._resolve_input_direction(raw_input)
 
-        # อัพเดทตัวนับเวลาความเร็วบูสต์ (Boost timer)
-        dir_x, dir_y = self._resolve_input_direction(raw_input)
-
         if (dir_x, dir_y) == (0, 0):
             self.drilling_target = None
             self.is_diving = False
+            self._slam_triggered = False
             return
 
         self.facing = (dir_x, dir_y)
@@ -259,6 +373,7 @@ class Vehicle:
         if dir_y < 0:
             self.is_diving = False
             self.dive_power = 0.0
+            self._slam_triggered = False
             vtype_cfg = S.VEHICLE_TYPES.get(self.vehicle_type, S.VEHICLE_TYPES["standard"])
             charge_rate = S.GRAV_CHARGE_RATE * vtype_cfg.get("grav_charge_mult", 1.0)
             self.grav_charge = min(S.GRAV_CHARGE_MAX, self.grav_charge + dt * charge_rate)
@@ -301,12 +416,14 @@ class Vehicle:
         elif dir_y > 0:
             self.is_diving = False
             self.dive_power = 0.0
+            self._slam_triggered = False
             current_speed = self.speed
 
         # เคลื่อนที่แนวนอน (ซ้าย/ขวา) - อนุรักษ์พลังงานศักย์เดิมไว้ (Conservation of Energy)
         else:
             self.is_diving = False
             self.dive_power = 0.0
+            self._slam_triggered = False
             current_speed = self.speed
 
         col, row = self.grid_pos()
@@ -478,9 +595,11 @@ class Vehicle:
             # สั่นสะเทือนพื้นและสร้างคลื่นกระแทก
             self.vibe_x = (random.random() * 2.0 - 1.0) * 3.5 * self.dive_power
             self.vibe_y = (random.random() * 2.0 - 1.0) * 3.5 * self.dive_power
-            if particle_system and self.dive_power > 0.2:
-                particle_system.spawn_ground_slam_shockwave(self.x, row * S.TILE)
-                particle_system.add_floating_text(f"💥 GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
+            if self.dive_power > 0.2 and not getattr(self, "_slam_triggered", False):
+                self._slam_triggered = True
+                if particle_system:
+                    particle_system.spawn_ground_slam_shockwave(self.x, row * S.TILE)
+                    particle_system.add_floating_text(f"GRAVITY SLAM! (x{drill_mult:.1f})", self.x, self.y - 20, (255, 210, 60))
                 if self.on_dive_performed:
                     self.on_dive_performed()
             # สลายพลังงานศักย์ลงเมื่อกระแทกพื้น
@@ -583,14 +702,14 @@ class Vehicle:
                 if bonus_res == S.RES_FUEL:
                     self.energy = min(self.max_energy, self.energy + S.FUEL_CANISTER_RESTORE)
                     if particle_system:
-                        particle_system.add_floating_text("🧲 แรงดึงดูด: +เชื้อเพลิง!", t_cx, t_cy - 16, (255, 210, 60))
+                        particle_system.add_floating_text("แรงดึงดูด: +เชื้อเพลิง!", t_cx, t_cy - 16, (255, 210, 60))
                 else:
                     if self.add_cargo(bonus_res):
                         if self.on_resource_collected:
                             self.on_resource_collected(bonus_res)
                         bname = S.RESOURCE_NAME.get(bonus_res, "แร่")
                         if particle_system:
-                            particle_system.add_floating_text(f"🧲 ดูดแร่พิเศษ! +1 {bname}", t_cx, t_cy - 16, (210, 130, 255))
+                            particle_system.add_floating_text(f"ดูดแร่พิเศษ! +1 {bname}", t_cx, t_cy - 16, (210, 130, 255))
 
     # ------------------------------------------------------------------
     def to_dict(self):
@@ -604,6 +723,11 @@ class Vehicle:
             "color_id": self.color_id,
             "vehicle_type": self.vehicle_type,
             "drill_head": self.drill_head,
+            "max_depth_reached": getattr(self, "max_depth_reached", 0),
+            "total_diamonds_collected": getattr(self, "total_diamonds_collected", 0),
+            "unlocked_colors": sorted(list(getattr(self, "unlocked_colors", {"yellow", self.color_id}))),
+            "unlocked_types": sorted(list(getattr(self, "unlocked_types", {"standard", self.vehicle_type}))),
+            "unlocked_drills": sorted(list(getattr(self, "unlocked_drills", {"spiral", self.drill_head}))),
         }
 
     def load_dict(self, data):
@@ -613,6 +737,11 @@ class Vehicle:
         self.color_id = data.get("color_id", getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow"))
         self.vehicle_type = data.get("vehicle_type", getattr(S, "DEFAULT_VEHICLE_TYPE", "standard"))
         self.drill_head = data.get("drill_head", getattr(S, "DEFAULT_DRILL_HEAD", "spiral"))
+        self.max_depth_reached = int(data.get("max_depth_reached", max(0, int(self.y // S.TILE) - S.SURFACE_ROW)))
+        self.total_diamonds_collected = int(data.get("total_diamonds_collected", 0))
+        self.unlocked_colors = set(data.get("unlocked_colors", ["yellow"])) | {"yellow", self.color_id}
+        self.unlocked_types = set(data.get("unlocked_types", ["standard"])) | {"standard", self.vehicle_type}
+        self.unlocked_drills = set(data.get("unlocked_drills", ["spiral"])) | {"spiral", self.drill_head}
         self.recalc_stats()
         self.energy = data["energy"]
         self.cargo = {int(k): v for k, v in data["cargo"].items()}
