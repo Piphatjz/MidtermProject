@@ -1241,25 +1241,25 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
     dim_overlay(surface, 185)
     cx = S.SCREEN_W // 2
 
-    panel = pygame.Rect(cx - 245, 65, 490, 570)
+    panel = pygame.Rect(cx - 260, 60, 520, 580)
     _panel(surface, panel, bg=(20, 22, 34), border=(65, 72, 110), alpha=248, radius=16)
 
     buttons = {}
 
     # แถบแท็บด้านบน
     if game_mode == "classic":
-        tab_w = 142
-        tab_gap = 8
-        tab_x0 = panel.left + 18
+        tab_w = 152
+        tab_gap = 12
+        tab_x0 = panel.left + 20
 
         # แท็บ 1: อัปเกรดสถานะ
         tab_upg = pygame.Rect(tab_x0, panel.top + 16, tab_w, 36)
         is_upg = (active_tab == "upgrades")
         _panel(surface, tab_upg, bg=(50, 95, 155) if is_upg else (38, 42, 60),
                border=(90, 160, 255) if is_upg else (80, 95, 130), alpha=240, radius=8)
-        draw_icon_wrench(surface, (tab_upg.left + 8, tab_upg.centery - 9, 18, 18))
+        draw_icon_wrench(surface, (tab_upg.left + 12, tab_upg.centery - 9, 18, 18))
         text(surface, "อัปเกรด", FONT_S, (255, 255, 255) if is_upg else (200, 210, 230),
-             (tab_upg.centerx + 10, tab_upg.top + 9))
+             (tab_upg.centerx + 10, tab_upg.centery), center=True)
         buttons["tab_upgrades"] = tab_upg
 
         # แท็บ 2: ปลดล็อคชั้นความลึก
@@ -1267,32 +1267,34 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
         is_flr = (active_tab == "floor")
         _panel(surface, tab_flr, bg=(175, 115, 30) if is_flr else (38, 42, 60),
                border=(255, 215, 60) if is_flr else (80, 95, 130), alpha=240, radius=8)
-        draw_icon_lock(surface, (tab_flr.left + 8, tab_flr.centery - 9, 18, 18),
+        draw_icon_lock(surface, (tab_flr.left + 12, tab_flr.centery - 9, 18, 18),
                        color=(255, 225, 90) if is_flr else (210, 220, 240))
         text(surface, "ปลดล็อคชั้น", FONT_S, (255, 255, 255) if is_flr else (200, 210, 230),
-             (tab_flr.centerx + 10, tab_flr.top + 9))
+             (tab_flr.centerx + 10, tab_flr.centery), center=True)
         buttons["tab_floor"] = tab_flr
 
         # แท็บ 3: อู่แต่งรถ (Garage)
         tab_gar = pygame.Rect(tab_x0 + (tab_w + tab_gap) * 2, panel.top + 16, tab_w, 36)
         _panel(surface, tab_gar, bg=(38, 42, 60) if not tab_gar.collidepoint(mouse_pos) else (50, 55, 80),
                border=(80, 95, 130), alpha=240, radius=8)
-        draw_icon_palette(surface, (tab_gar.left + 8, tab_gar.centery - 9, 18, 18))
-        text(surface, "อู่แต่งรถ", FONT_S, (200, 210, 230), (tab_gar.centerx + 10, tab_gar.top + 9))
+        draw_icon_palette(surface, (tab_gar.left + 12, tab_gar.centery - 9, 18, 18))
+        text(surface, "อู่แต่งรถ", FONT_S, (200, 210, 230),
+             (tab_gar.centerx + 10, tab_gar.centery), center=True)
         buttons["tab_garage"] = tab_gar
     else:
-        tab_upg = pygame.Rect(panel.left + 18, panel.top + 16, 218, 36)
+        tab_upg = pygame.Rect(panel.left + 20, panel.top + 16, 232, 36)
         _panel(surface, tab_upg, bg=(50, 95, 155), border=(90, 160, 255), alpha=240, radius=8)
-        draw_icon_wrench(surface, (tab_upg.left + 10, tab_upg.centery - 9, 18, 18))
-        text(surface, "อัปเกรดสถานะ", FONT_S, (255, 255, 255), (tab_upg.centerx + 6, tab_upg.top + 9))
+        draw_icon_wrench(surface, (tab_upg.left + 14, tab_upg.centery - 9, 18, 18))
+        text(surface, "อัปเกรดสถานะ", FONT_S, (255, 255, 255),
+             (tab_upg.centerx + 10, tab_upg.centery), center=True)
 
-        tab_gar = pygame.Rect(panel.right - 236, panel.top + 16, 218, 36)
+        tab_gar = pygame.Rect(panel.right - 252, panel.top + 16, 232, 36)
         _panel(surface, tab_gar, bg=(38, 42, 60) if not tab_gar.collidepoint(mouse_pos) else (50, 55, 80),
                border=(80, 95, 130), alpha=240, radius=8)
-        draw_icon_palette(surface, (tab_gar.left + 10, tab_gar.centery - 9, 18, 18))
+        draw_icon_palette(surface, (tab_gar.left + 14, tab_gar.centery - 9, 18, 18))
         text(surface, "อู่แต่งรถ (Garage)", FONT_S,
              (210, 220, 240) if not tab_gar.collidepoint(mouse_pos) else (255, 255, 255),
-             (tab_gar.centerx + 6, tab_gar.top + 9))
+             (tab_gar.centerx + 10, tab_gar.centery), center=True)
         buttons["tab_garage"] = tab_gar
 
     pygame.draw.line(surface, (50, 55, 80),
@@ -1313,26 +1315,26 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
         can_unlock = (vehicle.coins >= cost)
 
         # การ์ดชั้นถัดไป
-        card = pygame.Rect(panel.left + 18, panel.top + 98, panel.w - 36, 178)
+        card = pygame.Rect(panel.left + 20, panel.top + 96, panel.w - 40, 174)
         _panel(surface, card, bg=(32, 28, 24) if can_unlock else (26, 26, 36),
                border=(255, 215, 60) if can_unlock else (75, 75, 100), alpha=240, radius=12)
 
-        draw_icon_lock(surface, (card.left + 14, card.top + 14, 22, 22),
+        draw_icon_lock(surface, (card.left + 14, card.top + 13, 22, 22),
                        color=(255, 215, 60) if can_unlock else (210, 95, 95))
         text(surface, f"ชั้นถัดไป: ชั้นที่ {next_floor} - {next_info['name']}", FONT_M, (255, 235, 120),
-             (card.left + 44, card.top + 14), max_w=card.w - 55)
+             (card.left + 42, card.top + 13), max_w=card.w - 56)
 
         text(surface, f"ความลึก: {next_info['min_depth']} - {next_info['max_depth']} เมตร  (ชั้นปัจจุบันปลดล็อคถึง {cur_info['max_depth']}ม.)",
-             FONT_S, (120, 215, 255), (card.left + 16, card.top + 46), max_w=card.w - 32)
+             FONT_S, (120, 215, 255), (card.left + 16, card.top + 44), max_w=card.w - 32)
         text(surface, next_info["desc"], FONT_XS, (200, 210, 230),
-             (card.left + 16, card.top + 72), max_w=card.w - 32)
+             (card.left + 16, card.top + 70), max_w=card.w - 32)
 
         cost_col = (255, 215, 60) if can_unlock else (245, 110, 110)
         cost_lbl = f"ค่าปลดล็อค: {cost:,} เหรียญ" if can_unlock else f"ค่าปลดล็อค: {cost:,} เหรียญ  (ขาดอีก {cost - vehicle.coins:,} เหรียญ)"
-        text(surface, cost_lbl, FONT_S, cost_col, (card.left + 16, card.top + 98), max_w=card.w - 32)
+        text(surface, cost_lbl, FONT_S, cost_col, (card.left + 16, card.top + 95), max_w=card.w - 32)
 
         # ปุ่มปลดล็อค
-        btn_unlock = pygame.Rect(card.left + 16, card.top + 122, card.w - 32, 42)
+        btn_unlock = pygame.Rect(card.left + 16, card.top + 120, card.w - 32, 40)
         if can_unlock:
             button(surface, btn_unlock, f"ปลดล็อคชั้นที่ {next_floor}  ({cost:,} เหรียญ)",
                    FONT_M, base=(40, 150, 75), hover=btn_unlock.collidepoint(mouse_pos))
@@ -1344,13 +1346,15 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
         buttons["unlock_floor"] = btn_unlock
 
         # รายการทำเนียบชั้นความลึก
-        list_rect = pygame.Rect(panel.left + 18, panel.top + 288, panel.w - 36, 216)
+        list_rect = pygame.Rect(panel.left + 20, panel.top + 282, panel.w - 40, 236)
         _panel(surface, list_rect, bg=(24, 26, 38), border=(50, 56, 78), radius=12)
         text(surface, "ทำเนียบชั้นความลึกทั้งหมด (Floor Directory)", FONT_S, (210, 225, 250),
-             (list_rect.centerx, list_rect.top + 10), center=True)
+             (list_rect.centerx, list_rect.top + 18), center=True)
+        pygame.draw.line(surface, (45, 52, 74),
+                         (list_rect.left + 14, list_rect.top + 34), (list_rect.right - 14, list_rect.top + 34), 1)
 
         for i, fc in enumerate(S.CLASSIC_FLOORS[:6]):
-            row_y = list_rect.top + 36 + i * 28
+            row_y = list_rect.top + 42 + i * 30
             f_num = fc["floor"]
             is_unlocked = (f_num <= unlocked_floor)
 
@@ -1364,11 +1368,12 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
                 status_txt = f"ล็อค ({fc['unlock_cost']:,} เหรียญ)"
                 status_col = (235, 155, 80)
 
-            text(surface, f"ชั้น {f_num}: {fc['name'][:16]} ({fc['min_depth']}-{fc['max_depth']}ม.)",
-                 FONT_XS, f_col, (list_rect.left + 36, row_y + 2), max_w=240)
-            text(surface, status_txt, FONT_XS, status_col, (list_rect.right - 14, row_y + 2), right=True)
+            short_name = fc["name"].split(" (")[0]
+            text(surface, f"ชั้น {f_num}: {short_name} ({fc['min_depth']}-{fc['max_depth']}ม.)",
+                 FONT_XS, f_col, (list_rect.left + 36, row_y + 2), max_w=295)
+            text(surface, status_txt, FONT_XS, status_col, (list_rect.right - 16, row_y + 2), right=True)
 
-        close_rect = pygame.Rect(cx - 90, panel.bottom - 46, 180, 36)
+        close_rect = pygame.Rect(cx - 90, panel.bottom - 48, 180, 36)
         button(surface, close_rect, "ปิดร้าน  (E / ESC)", FONT_S, base=(55, 58, 80),
                hover=close_rect.collidepoint(mouse_pos))
         buttons["close"] = close_rect

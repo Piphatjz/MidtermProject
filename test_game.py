@@ -368,7 +368,7 @@ def run_tests():
     for c in range(S.COLS):
         assert c_game.world.tiles[b_row_flr1][c] == S.T_EMPTY, f"Row {b_row_flr1} must now be opened (T_EMPTY)"
 
-    # Test Shop floor tab rendering
+    # Test Shop floor tab rendering & verify all rects stay strictly inside shop panel
     c_game.shop_tab = "floor"
     shop_buttons = ui.draw_shop_menu(screen, c_game.vehicle, (100, 100),
                                      game_mode=c_game.game_mode,
@@ -376,6 +376,9 @@ def run_tests():
                                      active_tab=c_game.shop_tab)
     assert "tab_floor" in shop_buttons
     assert "unlock_floor" in shop_buttons
+    shop_panel_rect = pygame.Rect(S.SCREEN_W // 2 - 260, 60, 520, 580)
+    for bkey, brect in shop_buttons.items():
+        assert shop_panel_rect.contains(brect), f"Shop button '{bkey}' {brect} overflows shop panel {shop_panel_rect}!"
 
     # Test Save & Load persistence for Classic Mode
     c_game.save_and_quit()
@@ -429,7 +432,7 @@ def run_tests():
     m_dive.update(0.016)
     assert m_dive.state == "game_over", "Mission mode must trigger GAME_OVER when stalled underground"
 
-    # Verify Classic Mode emergency tow when stalled underground
+    # Verify Classic Mode stalled state underground also triggers GAME_OVER
     c_game.state = PLAYING
     c_game.vehicle.y = (S.SURFACE_ROW + 20) * S.TILE
     c_game.vehicle.coins = 0
@@ -438,8 +441,7 @@ def run_tests():
     c_game.vehicle.energy = 0.0
     c_game.vehicle.stalled = True
     c_game.update(0.016)
-    assert c_game.state == PLAYING, "Classic mode should never Game Over on stall"
-    assert not c_game.vehicle.stalled and c_game.vehicle.energy == c_game.vehicle.max_energy
+    assert c_game.state == "game_over", "Classic mode must also trigger GAME_OVER when stalled underground"
     print("  -> HUD cleanliness, stalled behavior, single-count Gravity Slam, and vector goal icons verified OK.")
 
     # Clean up test save

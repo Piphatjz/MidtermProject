@@ -516,21 +516,11 @@ class Game:
 
         self.was_in_home = in_home
 
-        # ตรวจสอบพลังงานหมดเมื่ออยู่นอกฐานบ้าน
-        if self.vehicle.stalled and not in_home:
-            if getattr(self, "game_mode", "mission") == "classic":
-                # โหมดคลาสสิก: หน่วยกู้ภัยลากกลับฐานบ้านอัตโนมัติ ไม่ตัดจบเกม
-                self.vehicle.x = S.HOME_COL * S.TILE + S.TILE / 2.0
-                self.vehicle.y = (S.SURFACE_ROW - 1) * S.TILE + S.TILE / 2.0
-                self.vehicle.refuel()
-                self.vehicle.stalled = False
-                self.was_in_home = True
-                assets.play_sound("refuel", volume=0.8)
-                self._toast("พลังงานหมด! หน่วยกู้ภัยลากรถกลับฐานและเติมพลังงานให้แล้ว", dur=3.5)
-            elif S.END_ON_ENERGY_EMPTY:
-                self.end_title = "พลังงานหมด!"
-                self.end_sub = "รถขุดพลังงานหมดกลางทางและไม่สามารถกลับฐานบ้านบนพื้นผิวได้"
-                self.state = GAME_OVER
+        # ตรวจสอบพลังงานหมดเมื่ออยู่นอกฐานบ้าน (แพ้ทั้งโหมดภารกิจและโหมดคลาสสิก)
+        if self.vehicle.stalled and not in_home and S.END_ON_ENERGY_EMPTY:
+            self.end_title = "พลังงานหมด!"
+            self.end_sub = "รถขุดพลังงานหมดกลางทางและไม่สามารถกลับฐานบ้านบนพื้นผิวได้"
+            self.state = GAME_OVER
 
     # ------------------------------------------------------------------
     def draw(self):
