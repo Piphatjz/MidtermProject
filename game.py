@@ -364,6 +364,9 @@ class Game:
                     self.unlock_next_floor()
                 elif self.state == SHOP:
                     self.state = PLAYING
+            elif event.key == pygame.K_m:
+                assets.toggle_mute()
+                self._toast("ปิดเสียง" if assets.is_muted() else "เปิดเสียง")
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == PAUSED:
