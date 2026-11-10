@@ -620,38 +620,48 @@ class Vehicle:
             self._on_block_dug(col, row, world, particle_system, is_rock)
             self.drilling_target = None
 
-        # ---- Drill Reach: เจาะบล็อกข้าง ๆ ตาม Tier และชนิดหัวขุด ----
+        # ---- Drill Reach: เจาะบล็อกข้าง ๆ เฉพาะบล็อกที่เชื่อมต่อกัน (Contiguous Raycast) ----
         reach = self.drill_reach  # 1..4
         if reach > 1:
             # ทิศที่เคลื่อนที่แนวนอน (left/right) → เจาะบล็อกบน/ล่างของเป้าหมาย
             # ทิศที่เคลื่อนที่แนวตั้ง (up/down)   → เจาะบล็อกซ้าย/ขวาของเป้าหมาย
             fx, fy = self.facing
-            if fx != 0:
-                perp_axis = "y"  # เคลื่อนที่แนวนอน → เจาะแนวตั้ง
-            else:
-                perp_axis = "x"  # เคลื่อนที่แนวตั้ง → เจาะแนวนอน
+            perp_axis = "y" if fx != 0 else "x"
 
-            # สร้างรายการ offset (-reach+1 .. reach-1, ไม่รวม 0 ซึ่งเป็นบล็อกหลัก)
             half = reach - 1
             side_damage = damage_amount
-            for off in range(-half, half + 1):
-                if off == 0:
-                    continue
-                if perp_axis == "y":
-                    sc, sr = col, row + off
-                else:
-                    sc, sr = col + off, row
 
-                if world.is_solid(sc, sr):
+            # ส่งแรงเจาะแผ่ออก 2 ทิศทาง (ฝั่งบวก direction = 1 และ ฝั่งลบ direction = -1)
+            for direction in (1, -1):
+                for step in range(1, half + 1):
+                    off = direction * step
+                    if perp_axis == "y":
+                        sc, sr = col, row + off
+                    else:
+                        sc, sr = col + off, row
+
+                    # หากพบช่องว่างอากาศคั่นกลาง ให้หยุดส่งแรงในทิศนี้ทันที (ไม่ทะลุข้ามอากาศไปโดนบล็อกลอย)
+                    if not world.is_solid(sc, sr):
+                        break
+
                     side_tile = world.get_tile(sc, sr)
                     side_is_rock = (side_tile == S.T_ROCK)
                     side_can_mine = head_cfg.get("can_drill_rock_always", False) or (self.drill_level() >= S.ROCK_MIN_DRILL_LEVEL)
+                    # หินแข็งที่เลเวลหัวขุดยังเจาะไม่เข้าจะทำหน้าที่เป็นกำแพงกั้นแรงสะเทือน หยุดการส่งแรงต่อทันที
                     if side_is_rock and not side_can_mine:
-                        continue
+                        break
+
                     side_dmg = side_damage
                     if side_is_rock:
                         side_dmg *= head_cfg.get("rock_damage_mult", 1.0)
                     side_dug = world.damage_tile(sc, sr, side_dmg)
+
+                    # เสกสะเก็ดฝุ่นดิน/ประกายหินแล่นไปตามแนวบล็อกที่โดนแรงเจาะด้านข้าง
+                    if particle_system and random.random() < 0.45:
+                        sx = sc * S.TILE + S.TILE / 2.0
+                        sy = sr * S.TILE + S.TILE / 2.0
+                        particle_system.spawn_dig_debris(sx, sy, is_rock=side_is_rock)
+
                     if side_dug:
                         self._on_block_dug(sc, sr, world, particle_system, side_is_rock)
 

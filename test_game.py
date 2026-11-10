@@ -444,6 +444,46 @@ def run_tests():
     assert c_game.state == "game_over", "Classic mode must also trigger GAME_OVER when stalled underground"
     print("  -> HUD cleanliness, stalled behavior, single-count Gravity Slam, and vector goal icons verified OK.")
 
+    # ==================== Test 12: Contiguous Drill Raycast (No Phantom Damage on Floating Blocks) ====================
+    print("Testing Contiguous Drill Raycast & Floating Block Protection...")
+    from particles import ParticleSystem
+    from world import World
+    w_test = World()
+    ps_test = ParticleSystem()
+    v_aoe = Vehicle(4, 5, drill_head="seismic")  # drill_reach = 2
+    assert v_aoe.drill_reach >= 2
+
+    # จัดเตรียมแถวทดสอบที่ row 6:
+    # col 4: บล็อกหลัก (SOLID DIRT)
+    # col 5: ช่องว่างอากาศ (EMPTY AIR)
+    # col 6: บล็อกลอยเดี่ยวๆ (FLOATING DIRT)
+    # col 3: บล็อกติดกันฝั่งซ้าย (ADJACENT CONNECTED DIRT)
+    w_test.tiles[6][4] = S.T_DIRT
+    w_test.hp[6][4] = 10.0
+    w_test.max_hp[6][4] = 10.0
+
+    w_test.tiles[6][5] = S.T_EMPTY
+    w_test.hp[6][5] = 0.0
+
+    w_test.tiles[6][6] = S.T_DIRT
+    w_test.hp[6][6] = 10.0
+    w_test.max_hp[6][6] = 10.0
+
+    w_test.tiles[6][3] = S.T_DIRT
+    w_test.hp[6][3] = 10.0
+    w_test.max_hp[6][3] = 10.0
+
+    v_aoe.facing = (0, 1)  # เจาะลงล่าง -> perp_axis = "x" (กระจายแนวนอน)
+    v_aoe._handle_drilling(4, 6, w_test, 0.5, ps_test)
+
+    # 1. บล็อกหลักต้องโดนดาเมจ
+    assert w_test.hp[6][4] < 10.0, "Main target block must take damage"
+    # 2. บล็อกติดกัน (col 3) ต้องโดนดาเมจเพราะเชื่อมต่อกัน
+    assert w_test.hp[6][3] < 10.0, "Directly connected adjacent block must take damage"
+    # 3. บล็อกลอย (col 6) ต้องไม่โดนดาเมจเลย เพราะมีอากาศคั่นกลางที่ col 5!
+    assert w_test.hp[6][6] == 10.0, "Floating isolated block across empty air must NOT take damage!"
+    print("  -> Contiguous drill raycast verified OK (isolated blocks protected from phantom damage).")
+
     # Clean up test save
     if SM.save_exists():
         SM.delete_save()
