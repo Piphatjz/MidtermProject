@@ -195,11 +195,14 @@ python test_game.py
 
 ---
 
-## เอกสารประกอบเพิ่มเติม
+## เอกสารประกอบเพิ่มเติม (Documentation)
 
-- **[คู่มือนำเสนอโค้ดสำหรับ Mentor (CODE_PRESENTATION_GUIDE.md)](CODE_PRESENTATION_GUIDE.md)**: สำหรับอ่านเพื่อเตรียมตัวนำเสนอสถาปัตยกรรมโค้ด
-- **[เอกสารทางเทคนิคและสถาปัตยกรรม (SYSTEM_DOCUMENTATION.md)](SYSTEM_DOCUMENTATION.md)**: อธิบายรายละเอียดเชิงลึกของอัลกอริทึมและฟังก์ชันภายใน
-- **[สรุปฟีเจอร์เกม 1 หน้า (GAME_FEATURES_1PAGE.md)](GAME_FEATURES_1PAGE.md)**: สรุปย่อฟีเจอร์สำหรับส่งรายงาน
+เอกสารสำหรับศึกษาโครงสร้างและการนำเสนอทั้งหมด ถูกจัดเก็บไว้ในโฟลเดอร์ [`docs/`](docs/):
+
+- **[แผนผังและคู่มือโครงสร้างสถาปัตยกรรมโค้ด (docs/ARCHITECTURE_GRAPH.md)](docs/ARCHITECTURE_GRAPH.md)**: แผนผังสถาปัตยกรรมระบบ (Flowcharts, Class Diagram, State Machine, Cross-Module Matrix)
+- **[คู่มือนำเสนอโค้ดสำหรับ Mentor (docs/CODE_PRESENTATION_GUIDE.md)](docs/CODE_PRESENTATION_GUIDE.md)**: สำหรับอ่านเพื่อเตรียมตัวนำเสนอสถาปัตยกรรมโค้ด
+- **[เอกสารทางเทคนิคและสถาปัตยกรรม (docs/SYSTEM_DOCUMENTATION.md)](docs/SYSTEM_DOCUMENTATION.md)**: อธิบายรายละเอียดเชิงลึกของอัลกอริทึมและฟังก์ชันภายใน
+- **[สรุปฟีเจอร์เกม 1 หน้า (docs/GAME_FEATURES_1PAGE.md)](docs/GAME_FEATURES_1PAGE.md)**: สรุปย่อฟีเจอร์สำหรับส่งรายงาน
 
 ---
 

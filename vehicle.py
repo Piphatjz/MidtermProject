@@ -496,16 +496,21 @@ class Vehicle:
                     self.y = block_edge + half_h
                     self._handle_drilling(target_col, target_row, world, dt, particle_system)
                 else:
-                    # เพดานด้านบนสุดของท้องฟ้า
-                    if self.y - half_h - move_dist >= S.TILE * 1.2:
+                    # เพดานผิวดิน: จำกัดให้อยู่เหนือผิวดินได้สูงสุดเพียง 1 บล็อก (Row SURFACE_ROW - 1) ไม่ลอยขึ้นไปบนฟ้า
+                    min_surface_y = (S.SURFACE_ROW - 1) * S.TILE + S.TILE / 2.0
+                    if self.y - move_dist >= min_surface_y:
                         self.y -= move_dist
                         self.is_moving = True
+                    else:
+                        self.y = min_surface_y
                     self.drilling_target = None
 
-        # ขอบเขตด้านซ้ายและขวาของแผนที่
+        # ขอบเขตด้านซ้ายและขวาของแผนที่ และเพดานผิวดิน (ห้ามลอยเกิน 1 บล็อกเหนือผิวดิน)
         min_x = half_w
         max_x = S.SCREEN_W - half_w
         self.x = max(min_x, min(max_x, self.x))
+        min_surface_y = (S.SURFACE_ROW - 1) * S.TILE + S.TILE / 2.0
+        self.y = max(min_surface_y, self.y)
 
         # ลดพลังงานเมื่อวิ่ง (เมื่อพุ่งดิ่งลงด้านล่างตามแรงโน้มถ่วง ไม่ต้องใช้พลังงานเครื่องยนต์!)
         if self.is_moving and not self.is_diving:

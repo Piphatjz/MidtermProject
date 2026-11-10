@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dig & Treasure - สถาปัตยกรรมโค้ดและแผนผังระบบฉบับสมบูรณ์</title>
+  
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Mermaid.js for interactive diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-dark: #0f141c;
+      --bg-card: #161e2b;
+      --bg-card-hover: #1c2738;
+      --bg-surface: #1d2736;
+      --border: #2a3a52;
+      --border-accent: #3d567a;
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.25);
+      --accent: #10b981;
+      --accent-gold: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --accent-red: #ef4444;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-th: 'Prompt', 'Kanit', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text);
+      font-family: var(--font-th);
+      line-height: 1.6;
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar Navigation */
+    #sidebar {
+      width: 290px;
+      background-color: #0b0f15;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      z-index: 100;
+      transition: all 0.3s ease;
+    }
+
+    .brand {
+      padding: 22px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand i {
+      font-size: 26px;
+      color: var(--accent-gold);
+      text-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .brand span {
+      font-size: 11px;
+      color: var(--accent);
+      background: rgba(16, 185, 129, 0.15);
+      padding: 2px 7px;
+      border-radius: 12px;
+      font-weight: 500;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .search-box {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .search-wrapper {
+      position: relative;
+    }
+
+    .search-wrapper i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .search-wrapper input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px 8px 34px;
+      color: #fff;
+      font-size: 13px;
+      font-family: var(--font-th);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-wrapper input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .nav-links {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-group-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 10px 14px 4px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 14px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 400;
+      transition: all 0.2s;
+    }
+
+    .nav-item i {
+      font-size: 15px;
+      width: 18px;
+      text-align: center;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-surface);
+      color: #fff;
+      transform: translateX(3px);
+    }
+
+    .nav-item.active {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 500;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    /* Main Container */
+    #main-content {
+      margin-left: 290px;
+      flex: 1;
+      padding: 36px 48px 80px;
+      max-width: 1320px;
+    }
+
+    /* Header Banner */
+    .hero-banner {
+      background: linear-gradient(135deg, #172439 0%, #1e1b4b 100%);
+      border: 1px solid var(--border-accent);
+      border-radius: 18px;
+      padding: 34px 38px;
+      margin-bottom: 36px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::after {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-banner h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hero-banner p {
+      color: var(--text-muted);
+      font-size: 15px;
+      max-width: 850px;
+      margin-bottom: 18px;
+    }
+
+    .badge-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #cbd5e1;
+    }
+
+    .badge.green { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
+    .badge.blue { background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; }
+    .badge.gold { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24; }
+    .badge.purple { background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.4); color: #c084fc; }
+
+    /* Section Cards */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      transition: border-color 0.2s;
+    }
+
+    .section-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 21px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title i {
+      color: var(--primary);
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 14.5px;
+      margin-bottom: 22px;
+    }
+
+    /* Diagram Wrapper */
+    .diagram-container {
+      background: #0d1219;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      overflow-x: auto;
+      text-align: center;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
+      margin-bottom: 20px;
+    }
+
+    .diagram-container .mermaid {
+      display: inline-block;
+      text-align: left;
+    }
+
+    /* Interactive State Machine Explorer */
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .state-node {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+
+    .state-node:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+
+    .state-node.active {
+      border-color: var(--accent-gold);
+      background: rgba(245, 158, 11, 0.08);
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
+    }
+
+    .state-name {
+      font-family: var(--font-code);
+      font-size: 15px;
+      font-weight: 600;
+      color: #60a5fa;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .state-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .state-info-panel {
+      margin-top: 18px;
+      background: #0d1219;
+      border: 1px solid var(--border-accent);
+      border-radius: 12px;
+      padding: 20px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Collapsible File Explorer */
+    .file-accordion {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .file-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .file-card.open {
+      border-color: var(--primary);
+    }
+
+    .file-card-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      background: rgba(255,255,255,0.02);
+      transition: background 0.2s;
+    }
+
+    .file-card-header:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-icon {
+      font-size: 18px;
+      color: var(--accent-gold);
+    }
+
+    .file-name {
+      font-family: var(--font-code);
+      font-weight: 600;
+      font-size: 15px;
+      color: #fff;
+    }
+
+    .file-summary {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .file-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toggle-arrow {
+      color: var(--text-dim);
+      font-size: 14px;
+      transition: transform 0.25s;
+    }
+
+    .file-card.open .toggle-arrow {
+      transform: rotate(180deg);
+      color: var(--primary);
+    }
+
+    .file-card-body {
+      display: none;
+      padding: 18px;
+      border-top: 1px solid var(--border);
+      background: #0f1520;
+    }
+
+    .file-card.open .file-card-body {
+      display: block;
+    }
+
+    /* Function Table */
+    .function-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13.5px;
+    }
+
+    .function-table th {
+      background: #141c29;
+      color: var(--text-muted);
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .function-table td {
+      padding: 11px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: top;
+    }
+
+    .function-table tr:hover td {
+      background: rgba(255,255,255,0.02);
+    }
+
+    .func-signature {
+      font-family: var(--font-code);
+      color: #93c5fd;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .func-tag {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(139, 92, 246, 0.2);
+      color: #c084fc;
+      margin-left: 6px;
+      font-weight: 500;
+    }
+
+    /* Cross Module Table */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .matrix-table th {
+      background: #162030;
+      padding: 12px 16px;
+      text-align: left;
+      color: #fff;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border-accent);
+    }
+
+    .matrix-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .matrix-table tr:nth-child(even) td {
+      background: #182232;
+    }
+
+    .matrix-table tr:hover td {
+      background: #1d2b3f;
+    }
+
+    .matrix-tag {
+      font-family: var(--font-code);
+      font-size: 12.5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .tag-caller { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .tag-callee { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+
+    /* Back to top button */
+    #back-to-top {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--primary);
+      color: #fff;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      transition: all 0.25s;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    #back-to-top.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #back-to-top:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px var(--primary-glow);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Sidebar -->
+  <aside id="sidebar">
+    <div class="brand">
+      <i class="fa-solid fa-gem"></i>
+      <div>
+        <h1>Dig & Treasure</h1>
+        <span>v1.2.0 Architecture</span>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <div class="search-wrapper">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="ค้นหาฟังก์ชัน / คลาส / ไฟล์...">
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <div class="nav-group-title">ภาพรวมสถาปัตยกรรม</div>
+      <a href="#overview" class="nav-item active"><i class="fa-solid fa-sitemap"></i> ภาพรวมระดับสูง</a>
+      <a href="#statemachine" class="nav-item"><i class="fa-solid fa-diagram-project"></i> Finite State Machine</a>
+      <a href="#classes" class="nav-item"><i class="fa-solid fa-cubes"></i> Class Diagram</a>
+
+      <div class="nav-group-title">กลไกและฟิสิกส์</div>
+      <a href="#gameloop" class="nav-item"><i class="fa-solid fa-rotate"></i> Game Loop 60 FPS</a>
+      <a href="#mining" class="nav-item"><i class="fa-solid fa-hammer"></i> ฟิสิกส์การขุด Auto-Centering</a>
+
+      <div class="nav-group-title">เจาะลึก 12 โมดูล</div>
+      <a href="#modules" class="nav-item"><i class="fa-solid fa-code"></i> รายละเอียดทุกไฟล์ & ฟังก์ชัน</a>
+      <a href="#matrix" class="nav-item"><i class="fa-solid fa-network-wired"></i> Cross-Module Matrix</a>
+    </nav>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main id="main-content">
+    
+    <!-- Hero Banner -->
+    <header class="hero-banner" id="overview">
+      <h2><i class="fa-solid fa-compass-drafting"></i> สถาปัตยกรรมโค้ด Dig & Treasure (Interactive Guide)</h2>
+      <p>
+        แผนผังระบบแสดงการทำงาน ความสัมพันธ์ การส่งผ่านข้อมูล และปฏิสัมพันธ์ระหว่าง <b>12 ไฟล์ซอร์สโค้ด</b> และกว่า <b>100 ฟังก์ชัน</b> 
+        ที่ถูกออกแบบอย่างเป็นระบบตามหลัก Separation of Concerns, Resolution Independence, และ Procedural Generation
+      </p>
+      <div class="badge-bar">
+        <span class="badge blue"><i class="fa-brands fa-python"></i> Python 3.9+</span>
+        <span class="badge green"><i class="fa-solid fa-gamepad"></i> Pygame 2.5+</span>
+        <span class="badge gold"><i class="fa-solid fa-check-double"></i> 100% Automated Tests Pass</span>
+        <span class="badge purple"><i class="fa-solid fa-layer-group"></i> 9 Game States</span>
+      </div>
+    </header>
+
+    <!-- SECTION 1: SYSTEM ARCHITECTURE -->
+    <section class="section-card">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-network-wired"></i> 1. ภาพรวมสถาปัตยกรรมระดับสูง (System Architecture Flowchart)</h3>
+      </div>
+      <p class="section-desc">
+        แผนภาพแสดงโครงสร้างระดับโมดูลตั้งแต่จุดเริ่มต้นโปรแกรม (<code style="color:var(--primary)">main.py</code>) ส่งต่อไปยังสมองส่วนกลาง (<code style="color:var(--primary)">game.py</code>) ซึ่งถือครองข้อมูล Model, สั่ง View และจัดการ Persistence
+      </p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+flowchart TD
+    subgraph Boot["การเริ่มระบบและหน้าจอ (Boot & Display)"]
+        Main["main.py<br/><b>main()</b>"]
+        Scaler["main.py<br/><b>compute_scale_and_offset()</b>"]
+        Settings["settings.py<br/><b>Global Constants</b>"]
+    end
+
+    subgraph Core["ศูนย์กลางการควบคุม (Core Controller)"]
+        GameEngine["game.py<br/><b>class Game</b>"]
+    end
+
+    subgraph Simulation["โลกจำลองและวัตถุ (Simulation Models)"]
+        World["world.py<br/><b>class World</b>"]
+        Vehicle["vehicle.py<br/><b>class Vehicle</b>"]
+        Missions["missions.py<br/><b>class Mission</b>"]
+    end
+
+    subgraph ViewVFX["การแสดงผลและภาพเสียง (View & VFX)"]
+        UI["ui.py<br/><b>HUD, Menus, Vector Icons</b>"]
+        Particles["particles.py<br/><b>class ParticleSystem</b>"]
+        Assets["assets.py<br/><b>get_image(), play_sound()</b>"]
+        AssetGen["assets_gen.py<br/><b>build_all_assets()</b>"]
+    end
+
+    subgraph Persistence["การจัดเก็บข้อมูล (Persistence)"]
+        SaveMgr["save_manager.py<br/><b>save_game(), load_game()</b>"]
+        SaveFiles[("saves/slot_*.json<br/>saves/settings.json")]
+    end
+
+    Main -->|อ่านค่าความละเอียด| Settings
+    Main -->|คำนวณ Letterboxing| Scaler
+    Main -->|สร้างและส่ง Event/Tick| GameEngine
+
+    GameEngine -->|ควบคุมโครงข่ายบล็อก| World
+    GameEngine -->|ควบคุมสถานะรถและฟิสิกส์| Vehicle
+    GameEngine -->|อัปเดตและตรวจภารกิจ| Missions
+    GameEngine -->|สั่งเรนเดอร์ภาพ| UI
+    GameEngine -->|สร้างเอฟเฟกต์ประกายไฟ/ควัน| Particles
+    GameEngine -->|สั่งเล่นเสียง/โหลดภาพ| Assets
+    GameEngine -->|บันทึก/โหลดเซฟ| SaveMgr
+
+    Vehicle -->|ตรวจการชน & ขุดบล็อก| World
+    Vehicle -->|ปล่อยควัน/สะเก็ดหิน| Particles
+    Vehicle -->|เรียกเสียงเจาะ/บิน/กระแทก| Assets
+
+    UI -->|ดึงรูปภาพ Sprite| Assets
+    UI -->|วาด Particle Layer| Particles
+
+    AssetGen -.->|สังเคราะห์ไฟล์เข้าโฟลเดอร์| Assets
+    SaveMgr <-->|อ่าน/เขียน JSON| SaveFiles
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: FINITE STATE MACHINE -->
+    <section class="section-card" id="statemachine">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-diagram-project"></i> 2. แผนผังเครื่องสถานะเกม (Finite State Machine - 9 States)</h3>
+      </div>
+      <p class="section-desc">
+        เกมควบคุมการทำงานด้วย State Machine 9 สถานะ <b>(คลิกที่การ์ดสถานะด้านล่างเพื่อดู Trigger และหน้าต่างที่อนุญาตให้เปลี่ยนผ่าน)</b>
+      </p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+stateDiagram-v2
+    [*] --> MENU: เริ่มเกม (Launch)
+    MENU --> CONTRACT: กด New Game
+    MENU --> PLAYING: กด Continue
+    MENU --> HOW_TO_PLAY: กด How to Play
+    MENU --> [*]: กด Quit
+    HOW_TO_PLAY --> MENU: กด Back
+    CONTRACT --> PLAYING: เลือก 1 ใน 3 สัญญา
+    CONTRACT --> MENU: กด Cancel
+    PLAYING --> PAUSED: กด ESC / คลิกปุ่ม Pause
+    PAUSED --> PLAYING: กด Resume
+    PAUSED --> MENU: กด Save & Quit
+    PLAYING --> SHOP: จอดที่ร้านค้า กด 'E'
+    SHOP --> PLAYING: กด Close / ESC
+    PLAYING --> GARAGE: จอดที่บ้าน กด 'E'
+    GARAGE --> PLAYING: กด Close / ESC
+    PLAYING --> GAME_OVER: น้ำมันหมด (Energy <= 0)
+    GAME_OVER --> MENU: กด Return to Menu
+    PLAYING --> VICTORY: เป้าหมายสัญญาครบ 100%
+    VICTORY --> MENU: รับรางวัลกลับหน้าหลัก
+        </div>
+      </div>
+
+      <!-- Interactive State Explorer -->
+      <div class="state-grid">
+        <div class="state-node" onclick="showStateInfo('MENU')">
+          <div class="state-name">MENU <span>#0</span></div>
+          <div class="state-desc">หน้าไตเติลแรกเริ่ม มีปุ่ม Play Game, Continue (เมื่อมีเซฟ), How to Play, และ Exit</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('CONTRACT')">
+          <div class="state-name">CONTRACT <span>#1</span></div>
+          <div class="state-desc">หน้าต่างเลือกสัญญา 3 ระดับ (Easy, Medium, Hard) แสดงเป้าหมายความลึกและรางวัลเหรียญ</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('PLAYING')">
+          <div class="state-name">PLAYING <span>#2</span></div>
+          <div class="state-desc">ลูปการเล่นหลัก อัปเดตฟิสิกส์รถ ขุดบล็อก คลื่นเสียง อนุภาค และ HUD เรียลไทม์</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('SHOP')">
+          <div class="state-name">SHOP <span>#3</span></div>
+          <div class="state-desc">ร้านค้าบนผิวดิน (พิกัด X=352) บริการขายแร่ เติมน้ำมัน และอัปเกรดสเตตัส 4 สาย</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('GARAGE')">
+          <div class="state-name">GARAGE <span>#4</span></div>
+          <div class="state-desc">อู่ปรับแต่งรถที่บ้าน (พิกัด X=96) เปลี่ยนตัวถัง 4 แบบ, สว่าน 5 แบบ, สี 8 สี</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('PAUSED')">
+          <div class="state-name">PAUSED <span>#5</span></div>
+          <div class="state-desc">เมนูหยุดชั่วคราว มีปุ่ม Resume, ปรับความละเอียด, สลับ Fullscreen, และ Save & Quit</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('HOW_TO_PLAY')">
+          <div class="state-name">HOW_TO_PLAY <span>#6</span></div>
+          <div class="state-desc">หน้าต่างคู่มือแนะนำวิธีบังคับ สเตตัสรถ สัญลักษณ์แร่ และเทคนิค Gravity Slam</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('GAME_OVER')">
+          <div class="state-name">GAME_OVER <span>#7</span></div>
+          <div class="state-desc">เกิดขึ้นเมื่อน้ำมันหมดนอก Safe Zone รถขุดขยับไม่ได้ ต้องยอมสละของเพื่อกลับฐาน</div>
+        </div>
+        <div class="state-node" onclick="showStateInfo('VICTORY')">
+          <div class="state-name">VICTORY <span>#8</span></div>
+          <div class="state-desc">บรรลุเป้าหมายของสัญญาครบ 100% แสดงสรุปผลงาน เหรียญรางวัล และสถิติการดำดิ่ง</div>
+        </div>
+      </div>
+
+      <div id="stateInfoPanel" class="state-info-panel">
+        <h4 id="stateInfoTitle" style="color:var(--accent-gold); margin-bottom:8px; font-size:16px;"></h4>
+        <p id="stateInfoBody" style="color:var(--text); font-size:14px; margin-bottom:10px;"></p>
+        <div id="stateTransitions" style="font-size:13px; color:var(--text-muted);"></div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: CLASS DIAGRAM -->
+    <section class="section-card" id="classes">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-cubes"></i> 3. แผนผังคลาสและความสัมพันธ์เชิงโครงสร้าง (Class Diagram)</h3>
+      </div>
+      <p class="section-desc">
+        โครงสร้างข้อมูลเชิงวัตถุ แสดงความสัมพันธ์ของการเป็นเจ้าของ (Composition) ระหว่าง <code style="color:var(--primary)">Game</code>, <code style="color:var(--primary)">World</code>, <code style="color:var(--primary)">Vehicle</code>, <code style="color:var(--primary)">ParticleSystem</code>, และ <code style="color:var(--primary)">Mission</code>
+      </p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+classDiagram
+    class Game {
+        +state: int
+        +game_mode: str
+        +unlocked_floor: int
+        +camera_y: float
+        +world: World
+        +vehicle: Vehicle
+        +particles: ParticleSystem
+        +mission: Mission
+        +new_game(mission)
+        +new_game_classic()
+        +handle_event(event)
+        +update(dt)
+        +draw()
+        +unlock_next_floor()
+        +save_and_quit()
+    }
+
+    class World {
+        +seed: int
+        +game_mode: str
+        +unlocked_floor: int
+        +grid: list[list[int]]
+        +damage_grid: list[list[float]]
+        +resource_grid: list[list[int]]
+        +_generate()
+        +get_tile(col, row)
+        +is_solid(col, row)
+        +damage_tile(col, row, amount)
+        +collect_resource(col, row)
+        +unlock_barrier(floor_num)
+        +to_dict()
+        +from_dict(data)
+    }
+
+    class Vehicle {
+        +col: int
+        +row: int
+        +x: float
+        +y: float
+        +facing: str
+        +vehicle_type: str
+        +drill_head: str
+        +color_id: str
+        +energy: float
+        +cargo: list[str]
+        +coins: int
+        +power_tier: int
+        +capacity_tier: int
+        +energy_tier: int
+        +speed_tier: int
+        +recalc_stats()
+        +update(dt, world, raw_input, particle_system, shift_pressed)
+        +_handle_drilling(col, row, world, dt, particle_system)
+        +add_cargo(res_type)
+        +sell_cargo()
+        +refuel()
+        +unlock_and_equip(cat, item_id)
+        +to_dict()
+        +load_dict(data)
+    }
+
+    class ParticleSystem {
+        +particles: list[Particle]
+        +floating_texts: list[FloatingText]
+        +spawn_dig_debris(x, y, is_rock)
+        +spawn_block_break(cx, cy, is_rock)
+        +spawn_ground_slam_shockwave(cx, cy)
+        +spawn_plasma_spark(x, y)
+        +add_floating_text(text, x, y, color)
+        +update(dt)
+        +draw(surface, camera_y)
+    }
+
+    class Mission {
+        +id: str
+        +title: str
+        +difficulty: str
+        +reward_coins: int
+        +goals: dict
+        +progress: dict
+        +update_from_game(vehicle, depth)
+        +add_mined_resource(res)
+        +add_dive()
+        +is_completed()
+        +completion_ratio()
+    }
+
+    Game *-- World : Owns
+    Game *-- Vehicle : Owns
+    Game *-- ParticleSystem : Owns
+    Game o-- Mission : Holds active
+    Vehicle ..> World : Queries & Mutates
+    Vehicle ..> ParticleSystem : Spawns effects
+    Game ..> Mission : Updates progress
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: GAME LOOP SEQUENCE -->
+    <section class="section-card" id="gameloop">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-rotate"></i> 4. วงจรการทำงานหลักของเกม (Game Loop & Frame Processing)</h3>
+      </div>
+      <p class="section-desc">
+        ลำดับขั้นตอนที่เกิดขึ้นในทุกๆ เฟรม (1/60 วินาที): รับ Input ผู้เล่น → แปลงพิกัดสเกล → อัปเดตฟิสิกส์และการขุด → เลื่อนกล้อง → วาดภาพแยกเลเยอร์ขึ้น Virtual Canvas → อัปสเกลสู่จอจริง
+      </p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Player as ผู้เล่น
+    participant Main as main.py
+    participant Game as game.py
+    participant Vehicle as vehicle.py
+    participant World as world.py
+    participant VFX as particles.py
+    participant UI as ui.py
+    participant Screen as จอภาพ (Pygame Screen)
+
+    Player->>Main: กดคีย์บอร์ด / เลื่อนเมาส์
+    Main->>Main: คำนวณ Scale & Offset (Letterbox Re-mapping)
+    Main->>Game: game.handle_event(event)
+    
+    Note over Game: สถานะ PLAYING: Update Phase
+    Main->>Game: game.update(dt)
+    Game->>Vehicle: vehicle.update(dt, world, raw_input, particles, shift)
+    
+    alt ผู้เล่นสั่งเจาะบล็อก
+        Vehicle->>World: world.damage_tile(col, row, dmg)
+        Vehicle->>VFX: particles.spawn_dig_debris()
+        opt บล็อกแตก
+            World-->>Vehicle: บล็อกกลายเป็นทางเดิน (0)
+            Vehicle->>World: world.collect_resource(col, row)
+            Vehicle->>Vehicle: vehicle.add_cargo(res)
+            Vehicle->>VFX: particles.spawn_block_break()
+            Game->>Game: _check_mission_notifications()
+        end
+    end
+
+    Game->>VFX: particles.update(dt)
+    Game->>Game: ปรับตำแหน่งกล้อง Smooth Camera (camera_y)
+
+    Note over Game: Render Phase (วาดลง virtual_surface)
+    Main->>Game: game.draw()
+    Game->>UI: draw_sky_and_bg(surface, camera_y)
+    Game->>UI: draw_world(surface, world, camera_y)
+    Game->>UI: draw_home_and_shop(surface, camera_y)
+    Game->>UI: draw_vehicle(surface, vehicle, camera_y)
+    Game->>VFX: particles.draw(surface, camera_y)
+    Game->>UI: draw_hud(surface, vehicle, depth, mission)
+    
+    Main->>Screen: pygame.transform.scale (ส่งขึ้นจอจริง)
+    Main->>Screen: pygame.display.flip()
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: MINING & PHYSICS -->
+    <section class="section-card" id="mining">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-hammer"></i> 5. ฟิสิกส์การขุดและการจัดเก็บทรัพยากร (Mining & Physics Flow)</h3>
+      </div>
+      <p class="section-desc">
+        ขั้นตอนการตัดสินใจของระบบ เมื่อผู้เล่นบังคับรถเจาะบล็อก: การจัดแกนกึ่งกลาง (Auto-Centering) → หักล้าง HP ของบล็อก → ตรวจสอบการทำลาย → เก็บแร่เข้ากระเป๋า
+      </p>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+flowchart TD
+    StartInput["รับ Input ทิศทาง (W/A/S/D)"] --> CheckDirection{"ทิศทางเคลื่อนที่?"}
+    
+    CheckDirection -->|ขึ้น/ลง/ซ้าย/ขวา| AlignAxis["คำนวณ Auto-Centering<br/>ดึงตำแหน่งแกนตรงข้ามเข้าสู่กึ่งกลางช่อง (Tile Center)"]
+    
+    AlignAxis --> CheckTarget{"ช่องเป้าหมายด้านหน้า<br/>เป็นบล็อกแข็งหรือไม่?"}
+    
+    CheckTarget -->|ไม่ใช่ (อุโมงค์ว่าง)| MoveNormal["เคลื่อนที่ด้วยความเร็ว speed_pps<br/>ลด Energy ปกติ"]
+    
+    CheckTarget -->|เป็นบล็อกแข็ง| CheckRock{"เป็นหินแข็ง (Rock) หรือไม่?"}
+    
+    CheckRock -->|เป็นหิน แต่ Drill Level ต่ำไป| BlockBounce["ขุดไม่เข้า!<br/>เล่นเสียง Rock Clink<br/>เด้งตัวรถกลับ"]
+    
+    CheckRock -->|ขุดได้| ApplyDamage["คำนวณ Drill DPS (ขึ้นกับ Power Tier)<br/>หักล้าง HP ของบล็อก (Grass 4.0, Dirt 4.5, Rock 18.0)"]
+    
+    ApplyDamage --> SpawnDebris["สร้างสะเก็ดดิน/หิน (Particle Debris)<br/>เล่นเสียงเจาะวนซ้ำ (Drill Sound Cooldown)"]
+    
+    SpawnDebris --> CheckBroken{"HP ของบล็อก<br/>ลดลงเหลือ 0 หรือไม่?"}
+    
+    CheckBroken -->|ยังไม่พัง| ShowCracks["แสดงภาพรอยแตก (Crack Stage 1-3)<br/>ตาม damage_ratio"]
+    
+    CheckBroken -->|พังทลาย!| TileCleared["บล็อกกลายเป็น 0 (ทางเดิน)<br/>สร้างเอฟเฟกต์ Block Break<br/>สั่นสะเทือน (Screen Shake)"]
+    
+    TileCleared --> CollectRes{"มีแร่ในช่องหรือไม่?"}
+    
+    CollectRes -->|มีแร่| CheckCargo{"ความจุ Cargo เต็มหรือไม่?"}
+    CheckCargo -->|ยังไม่เต็ม| CargoAdd["นำแร่เข้ากระเป๋า<br/>แสดง Floating Text (+Coin / +Gold / +Diamond)<br/>เล่นเสียง Coin/Gem"]
+    CheckCargo -->|เต็มแล้ว!| CargoDrop["แสดงข้อความเตือน 'Cargo Full!'<br/>แร่หล่นสูญหายหรือเก็บไม่ได้"]
+    
+    CollectRes -->|ไม่มีแร่| EndCycle["เสร็จสิ้นรอบการขุด"]
+    CargoAdd --> EndCycle
+    CargoDrop --> EndCycle
+    ShowCracks --> EndCycle
+    MoveNormal --> EndCycle
+    BlockBounce --> EndCycle
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: MODULE DEEP DIVE -->
+    <section class="section-card" id="modules">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-code"></i> 6. เจาะลึกโครงสร้างทุกไฟล์และทุกฟังก์ชัน (12 Modules Detailed Directory)</h3>
+      </div>
+      <p class="section-desc">
+        คลิกที่การ์ดไฟล์ด้านล่างเพื่อเปิดดูตารางรายละเอียดฟังก์ชัน พารามิเตอร์ และหน้าที่การทำงานเชิงลึกของแต่ละโมดูล
+      </p>
+
+      <div class="file-accordion">
+        
+        <!-- main.py -->
+        <div class="file-card open">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">main.py</div>
+                <div class="file-summary">Bootstrapper, Virtual Surface Resolution Scaler, Fullscreen Handler</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge blue">2 Functions</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">compute_scale_and_offset(win_w, win_h)</span></td>
+                  <td>คำนวณ Scale Factor และขอบดำ Offset สำหรับรักษาสัดส่วน 4:3 (800x600) ไม่ให้ผิดเพี้ยนเมื่อเปิด Fullscreen หรือปรับขนาดหน้าต่าง</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">main()</span></td>
+                  <td>จุดเริ่มต้นของเกม รัน Pygame Init, สร้าง Virtual Canvas 800x600, ควบคุม Game Loop 60 FPS, จัดการปุ่ม F11 และ Re-map พิกัดเมาส์</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- game.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">game.py</div>
+                <div class="file-summary">Central State Controller, Camera System, Event Router</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge gold">class Game (19 Methods)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">__init__(self, screen)</span></td>
+                  <td>เริ่มต้นออบเจกต์ Game ถือสถานะ state = MENU, โหลดเพลง และเตรียมตัวแปรสำหรับกล้อง Smooth Camera</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">new_game(self, mission)</span></td>
+                  <td>สร้างรอบการเล่นใหม่โหมด Contract สุ่มแมพ World และสร้างรถ Vehicle ตามสัญญาที่เลือก</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">new_game_classic(self)</span></td>
+                  <td>เริ่มเกมโหมด Classic Endless ความลึกไม่จำกัด ปลดล็อคประตูกั้นชั้นลงไปเรื่อยๆ</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">unlock_next_floor(self)</span></td>
+                  <td>หักเหรียญของผู้เล่นตามราคาปลดล็อคชั้น และสั่ง <code style="color:var(--accent)">world.unlock_barrier()</code></td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">get_barrier_near_vehicle(self)</span></td>
+                  <td>ตรวจพิกัดรถว่าอยู่ใกล้แถบประตูกั้นชั้นหรือไม่ เพื่อแสดงแถบปลดล็อกบนหน้าจอ</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">save_and_quit(self)</span> / <span class="func-signature">load_game(self)</span></td>
+                  <td>ประสานงานกับ <code style="color:var(--accent)">save_manager</code> เพื่อบันทึกและกู้คืนสถานะเกมลงไฟล์ JSON</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">update(self, dt)</span></td>
+                  <td>อัปเดตรถ, อนุภาค, เช็กเงื่อนไขน้ำมันหมด (GAME_OVER) และตรวจภารกิจสำเร็จ (VICTORY)</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">draw(self)</span></td>
+                  <td>วาด Sky, World, Buildings, Vehicle, Particles, และ HUD ตาม State ปัจจุบัน</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- vehicle.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">vehicle.py</div>
+                <div class="file-summary">Vehicle Physics, Auto-Centering, Upgrades, Garage Customization</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge green">class Vehicle (26 Methods)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">recalc_stats(self)</span></td>
+                  <td>คำนวณค่า Max Energy, Speed, Drill DPS, และ Cargo Capacity โดยรวมบัฟจาก Chassis และ Upgrades</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">update(self, dt, world, input...)</span></td>
+                  <td>แกนหลักการเคลื่อนที่: ดึงรถเข้ากลางช่อง (Auto-Centering), ใช้ Turbo Boost, ขุดบล็อก และลด Energy</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">_handle_drilling(self, col, row, ...)</span></td>
+                  <td>ประมวลผลการเจาะบล็อก จัดการความสามารถพิเศษของหัวสว่าน (AoE Seismic, Diamond, Plasma)</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">_on_block_dug(self, col, row, ...)</span></td>
+                  <td>ทำงานเมื่อบล็อกพัง เก็บแร่เข้า Cargo, เล่นเสียง, สร้าง Particle สะเก็ดหินกระจายรอบทิศ</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">sell_cargo(self)</span> / <span class="func-signature">refuel(self)</span></td>
+                  <td>ขายทรัพยากรทั้งหมดในกระเป๋าเปลี่ยนเป็นเหรียญ และเติมพลังงานเต็ม 100%</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">unlock_and_equip(self, cat, id)</span></td>
+                  <td>ปลดล็อกและสวมใส่ประเภทตัวถัง, หัวสว่าน, หรือสีใหม่ในโรงรถ (Garage)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- world.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">world.py</div>
+                <div class="file-summary">2D Tile Grid, Procedural World Generation, Floor Barriers</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge blue">class World (15 Methods)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">_generate(self)</span></td>
+                  <td>สุ่มบล็อกชั้นหญ้า ดิน และหินแข็งตามระดับความลึก พร้อมแจกจ่ายแร่เหรียญ ทอง เพชร</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">_apply_floor_barriers(self)</span></td>
+                  <td>วางบล็อกประตูกั้นชั้นความปลอดภัย (Barrier) ขวางกั้นตามระดับความลึกที่ยังไม่ได้ปลดล็อก</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">damage_tile(self, col, row, amt)</span></td>
+                  <td>บันทึกความเสียหายลง damage_grid เมื่อสะสมจนถึงค่า Hardness จะเปลี่ยนบล็อกให้กลายเป็นทางเดิน (0)</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">collect_resource(self, col, row)</span></td>
+                  <td>ส่งคืนชนิดแร่ที่ฝังอยู่ในบล็อกพิกัดนั้น และล้างแร่ออกจาก resource_grid</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ui.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">ui.py</div>
+                <div class="file-summary">HUD 3-Zone, Shop & Garage Menus, Vector Icon System, Viewport Culling</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge purple">43 Functions</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">draw_hud(...)</span></td>
+                  <td>เรนเดอร์ HUD 3 ส่วน: ซ้าย (หลอดน้ำมัน & กระเป๋า), กลาง (เหรียญ & ความลึก), ขวา (สัญญา & ชั้น)</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">draw_shop_menu(...)</span></td>
+                  <td>เมนูร้านค้าสำหรับอัปเกรดสเตตัส 4 สาย แสดงแท็บราคาและปุ่มคลิกซื้อ</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">draw_garage_menu(...)</span></td>
+                  <td>เมนูโรงรถปรับแต่งตัวถัง 4 แบบ, สว่านพิเศษ 5 แบบ, และพาเลทสี 8 สี</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">draw_world(...)</span></td>
+                  <td>วาดบล็อกและรอยแตกความเสียหาย พร้อม Viewport Culling วาดเฉพาะแถวที่กล้องมองเห็น</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">draw_icon_* (20+ ฟังก์ชัน)</span></td>
+                  <td>วาดไอคอนเรขาคณิตด้วย Pygame Draw โดยตรง ไม่ต้องพึ่งพาฟอนต์อีโมจิ</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- particles.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">particles.py</div>
+                <div class="file-summary">VFX Particle System, Shockwaves, Sparks, Floating Indicator Text</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge green">class ParticleSystem (17 Methods)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">spawn_dig_debris(x, y, is_rock)</span></td>
+                  <td>สร้างสะเก็ดดินหรือสะเก็ดหินกระเด็นออกมาขณะที่สว่านกำลังเจาะบล็อก</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">spawn_block_break(cx, cy, is_rock)</span></td>
+                  <td>สร้างการระเบิดของอนุภาคกระจายรอบทิศเมื่อบล็อกถูกขุดจนแตกออก</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">spawn_ground_slam_shockwave(cx, cy)</span></td>
+                  <td>สร้างวงแหวนคลื่นกระแทกขยายตัวเมื่อใช้ Gravity Slam พุ่งกระแทกพื้น</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">add_floating_text(text, x, y, color)</span></td>
+                  <td>สร้างตัวหนังสือลอยขึ้นพร้อมค่อยๆ จางหาย (เช่น +25G, Cargo Full!)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- missions.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">missions.py</div>
+                <div class="file-summary">Procedural Contract Generator, Multi-Goal Tracking, Reward Calculation</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge gold">class Mission (11 Methods)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">get_three_contract_options()</span></td>
+                  <td>สุ่ม 3 สัญญาที่มีความหลากหลายด้านเป้าหมายและระดับความยากให้ผู้เล่นเลือก</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">update_from_game(vehicle, depth)</span></td>
+                  <td>อัปเดตสถิติความลึกที่ดำดิ่งได้ และตรวจสอบความคืบหน้าของเป้าหมาย</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">is_completed()</span></td>
+                  <td>คืนค่า True เมื่อเป้าหมายทุกข้อในสัญญาสำเร็จครบ 100% เพื่อเข้าสู่สถานะ VICTORY</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- assets.py & assets_gen.py -->
+        <div class="file-card">
+          <div class="file-card-header" onclick="toggleCard(this)">
+            <div class="file-info">
+              <i class="fa-brands fa-python file-icon"></i>
+              <div>
+                <div class="file-name">assets.py & assets_gen.py</div>
+                <div class="file-summary">Surface Cache, Audio Cooldown Manager & Procedural Asset Synthesizer</div>
+              </div>
+            </div>
+            <div class="file-meta">
+              <span class="badge blue">2 Files (18 Functions)</span>
+              <i class="fa-solid fa-chevron-down toggle-arrow"></i>
+            </div>
+          </div>
+          <div class="file-card-body">
+            <table class="function-table">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">ฟังก์ชัน / เมธอด</th>
+                  <th style="width: 65%;">หน้าที่และคำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="func-signature">get_image(name)</span></td>
+                  <td>โหลดและแคชรูปภาพ Pygame Surface จากโฟลเดอร์ assets/images/</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">play_sound(name)</span></td>
+                  <td>เล่นเสียงเอฟเฟกต์พร้อมระบบ Audio Cooldown ป้องกันเสียงเจาะเล่นซ้อนกันถี่เกินไป</td>
+                </tr>
+                <tr>
+                  <td><span class="func-signature">build_all_assets()</span></td>
+                  <td>สคริปต์ใน assets_gen.py สังเคราะห์สไปรต์ PNG 71 รูป และเสียง WAV 12 ไฟล์โดยไม่ต้องใช้ไฟล์ภายนอก</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 7: CROSS MODULE MATRIX -->
+    <section class="section-card" id="matrix">
+      <div class="section-header">
+        <h3 class="section-title"><i class="fa-solid fa-network-wired"></i> 7. ตารางสรุปปฏิสัมพันธ์ข้ามไฟล์ (Cross-Module Interaction Matrix)</h3>
+      </div>
+      <p class="section-desc">
+        สรุปการเชื่อมโยงการเรียกใช้ (Call Relationships) ระหว่างไฟล์ทั้งหมดในโปรเจกต์
+      </p>
+
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th style="width: 25%;">ไฟล์ต้นทาง (Caller)</th>
+            <th style="width: 25%;">ไฟล์ปลายทาง (Callee)</th>
+            <th style="width: 50%;">วัตถุประสงค์และฟังก์ชันที่เรียกใช้</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="matrix-tag tag-caller">main.py</span></td>
+            <td><span class="matrix-tag tag-callee">game.py</span></td>
+            <td>สร้างออบเจกต์ <code style="color:var(--primary)">Game</code> และส่ง Event / Update / Draw ใน Main Loop</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">game.py</span></td>
+            <td><span class="matrix-tag tag-callee">world.py</span></td>
+            <td>สั่งสร้างแมพ, เช็กการชน, ตรวจสอบบล็อก Barrier และปลดล็อกชั้น</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">game.py</span></td>
+            <td><span class="matrix-tag tag-callee">vehicle.py</span></td>
+            <td>ส่ง Input จากผู้เล่น ควบคุมการเคลื่อนที่ ขุดบล็อก และคำนวณสถานะ</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">game.py</span></td>
+            <td><span class="matrix-tag tag-callee">ui.py</span></td>
+            <td>วาด HUD ด้านบน, เมนูร้านค้า, โรงรถ, หน้าต่างเลือกสัญญา และหน้าต่างหยุดเกม</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">vehicle.py</span></td>
+            <td><span class="matrix-tag tag-callee">world.py</span></td>
+            <td>เช็ก <code style="color:var(--accent)">is_solid()</code> ขวางการเดิน และส่ง <code style="color:var(--accent)">damage_tile()</code> เพื่อเจาะบล็อก</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">vehicle.py</span></td>
+            <td><span class="matrix-tag tag-callee">particles.py</span></td>
+            <td>สั่งพ่นควันท่อไอเสีย ปล่อยสะเก็ดหิน และคลื่นกระแทก Shockwave</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">vehicle.py</span></td>
+            <td><span class="matrix-tag tag-callee">assets.py</span></td>
+            <td>เล่นเสียงเจาะหิน (<code style="color:var(--accent)">drill</code>), เสียงกระแทก (<code style="color:var(--accent)">rock_clink</code>), และเสียงเก็บแร่</td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">ui.py</span></td>
+            <td><span class="matrix-tag tag-callee">assets.py</span></td>
+            <td>ดึงรูปภาพสไปรต์ตัวถังรถ สว่าน อาคาร และรอยแตกบล็อกผ่าน <code style="color:var(--accent)">get_image()</code></td>
+          </tr>
+          <tr>
+            <td><span class="matrix-tag tag-caller">game.py</span></td>
+            <td><span class="matrix-tag tag-callee">save_manager.py</span></td>
+            <td>เซฟและโหลดข้อมูลเกม World, Vehicle, Stats ลงไฟล์ <code style="color:var(--accent)">saves/slot_1.json</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- Back to Top Floating Button -->
+  <div id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+    <i class="fa-solid fa-arrow-up"></i>
+  </div>
+
+  <script>
+    // Initialize Mermaid.js
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#0d1219',
+        primaryColor: '#1d2736',
+        primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#60a5fa',
+        secondaryColor: '#161e2b',
+        tertiaryColor: '#1e1b4b'
+      }
+    });
+
+    // Accordion Toggle
+    function toggleCard(header) {
+      const card = header.parentElement;
+      card.classList.toggle('open');
+    }
+
+    // Interactive State Machine Explorer
+    const stateData = {
+      'MENU': {
+        title: 'State #0: MENU (หน้าเมนูหลัก)',
+        body: 'สถานะแรกเมื่อเปิดเกม ผู้เล่นสามารถเลือกเริ่มเกมใหม่, เล่นต่อจากเซฟเดิม, หรือดูวิธีเล่น',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>CONTRACT</code> (กด New Game), → <code>PLAYING</code> (กด Continue), → <code>HOW_TO_PLAY</code> (กดวิธีเล่น), → <code>EXIT</code>'
+      },
+      'CONTRACT': {
+        title: 'State #1: CONTRACT (หน้าต่างเลือกสัญญาภารกิจ)',
+        body: 'แสดงตัวเลือกสัญญา 3 ฉบับ (Easy, Medium, Hard) ที่สุ่มสร้างขึ้น ผู้เล่นต้องเลือกสัญญา 1 ฉบับเพื่อตั้งเป็นเป้าหมายหลัก',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>PLAYING</code> (เมื่อเลือกสัญญาแล้ว), → <code>MENU</code> (กด Cancel / Back)'
+      },
+      'PLAYING': {
+        title: 'State #2: PLAYING (ลูปการเล่นหลัก)',
+        body: 'ผู้เล่นบังคับรถขุดดิน ขุดแร่ ดำดิ่งลึก และบริหารพลังงาน เป็นหัวใจของเกมเพลย์ทั้งหมด',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>PAUSED</code> (กด ESC), → <code>SHOP</code> (กด E ที่ร้าน), → <code>GARAGE</code> (กด E ที่บ้าน), → <code>GAME_OVER</code> (น้ำมันหมด), → <code>VICTORY</code> (พิชิตสัญญาครบ)'
+      },
+      'SHOP': {
+        title: 'State #3: SHOP (ร้านค้าอัปเกรดและเติมน้ำมัน)',
+        body: 'เปิดได้เมื่อรถจอดที่ร้านค้าบนผิวดิน สามารถขายแร่ในกระเป๋า เติมพลังงาน และอัปเกรด Power, Capacity, Energy, Speed',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>PLAYING</code> (กดปุ่ม Close หรือกด ESC)'
+      },
+      'GARAGE': {
+        title: 'State #4: GARAGE (อู่แต่งรถและเปลี่ยนอุปกรณ์)',
+        body: 'เปิดได้เมื่อรถจอดที่บ้านบนผิวดิน สามารถสลับ Chassis 4 ชนิด (Standard, Scout, Titan, Hover), หัวสว่าน 5 แบบ, และสี 8 สี',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>PLAYING</code> (กดปุ่ม Close หรือกด ESC)'
+      },
+      'PAUSED': {
+        title: 'State #5: PAUSED (หยุดเกมชั่วคราว)',
+        body: 'หยุดเวลาของเกมเพลย์ แสดงหน้าต่างเมนูให้เลือกเล่นต่อ สลับโหมดเต็มจอ หรือบันทึกเกมและออก',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>PLAYING</code> (กด Resume), → <code>MENU</code> (กด Save & Quit)'
+      },
+      'HOW_TO_PLAY': {
+        title: 'State #6: HOW_TO_PLAY (คู่มือแนะนำการเล่น)',
+        body: 'หน้าต่างอธิบายปุ่มกด W/A/S/D, Shift Boost, ชนิดแร่, และทริคการใช้ Gravity Slam',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>MENU</code> (กด Back)'
+      },
+      'GAME_OVER': {
+        title: 'State #7: GAME_OVER (น้ำมันหมด / ภารกิจล้มเหลว)',
+        body: 'เกิดขึ้นเมื่อน้ำมันลดลงเหลือ 0 นอก Safe Zone รถขุดจะหยุดทำงานและระบบกู้ภัยต้องนำตัวกลับฐาน',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>MENU</code> (กด Return to Menu)'
+      },
+      'VICTORY': {
+        title: 'State #8: VICTORY (พิชิตสัญญาภารกิจสำเร็จ)',
+        body: 'เกิดขึ้นเมื่อทำเป้าหมายของสัญญาภารกิจครบ 100% แสดงผลตอบแทนเหรียญรางวัลและคะแนน',
+        transitions: '<b>เปลี่ยนสถานะไปได้:</b> → <code>MENU</code> (กดปุ่ม Claim Reward & Menu)'
+      }
+    };
+
+    function showStateInfo(stateKey) {
+      document.querySelectorAll('.state-node').forEach(el => el.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      const panel = document.getElementById('stateInfoPanel');
+      const title = document.getElementById('stateInfoTitle');
+      const body = document.getElementById('stateInfoBody');
+      const trans = document.getElementById('stateTransitions');
+
+      const data = stateData[stateKey];
+      if (data) {
+        title.innerHTML = `<i class="fa-solid fa-circle-dot"></i> ${data.title}`;
+        body.innerText = data.body;
+        trans.innerHTML = data.transitions;
+        panel.style.display = 'block';
+      }
+    }
+
+    // Live Search Filter
+    const searchInput = document.getElementById('searchInput');
+    searchInput.addEventListener('input', function(e) {
+      const q = e.target.value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.file-card');
+
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        if (text.includes(q)) {
+          card.style.display = 'block';
+          if (q.length > 2) card.classList.add('open');
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+
+    // Back to top scroll tracking
+    window.addEventListener('scroll', () => {
+      const btn = document.getElementById('back-to-top');
+      if (window.scrollY > 400) {
+        btn.classList.add('show');
+      } else {
+        btn.classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>

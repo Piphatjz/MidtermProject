@@ -2,7 +2,8 @@
 """
 game.py
 สถานะเกมและลอจิกหลัก (state machine):
-MENU, CONTRACT, PLAYING, PAUSED, SHOP, GAME_OVER, VICTORY
+MENU, PLAY_SELECT, CONTRACT, PLAYING, PAUSED, SHOP, GARAGE, HOW_TO_PLAY,
+LOAD_MENU, SAVE_MENU, SETTINGS_MENU, GAME_OVER, VICTORY
 ผูกระบบ Particle, เสียงเอฟเฟกต์, ภารกิจผสมประจำตา, การควบคุม และการเปลี่ยนฉากเข้าด้วยกัน
 """
 import sys
@@ -17,12 +18,16 @@ from particles import ParticleSystem
 import save_manager as SM
 
 MENU = "menu"
+PLAY_SELECT = "play_select"
 CONTRACT = "contract"
 PLAYING = "playing"
 PAUSED = "paused"
 SHOP = "shop"
 GARAGE = "garage"
 HOW_TO_PLAY = "how_to_play"
+LOAD_MENU = "load_menu"
+SAVE_MENU = "save_menu"
+SETTINGS_MENU = "settings_menu"
 GAME_OVER = "game_over"
 VICTORY = "victory"
 
@@ -53,19 +58,48 @@ class Game:
         self.game_mode = "mission"  # "mission" หรือ "classic"
         self.unlocked_floor = 1     # ชั้นสูงสุดที่ปลดล็อคแล้วในโหมดคลาสสิก
         self.previous_state = MENU
+
+        # ระบบเซฟ 5 สล็อต (Multi-slot Save System)
+        latest_s = SM.get_latest_slot()
+        self.current_slot = latest_s if latest_s is not None else 1
+        self.confirm_delete_slot = None
+        self.confirm_overwrite_slot = None
+
         assets.init()
+        # โหลดการตั้งค่าระบบเสียง
+        try:
+            settings_data = SM.load_settings()
+            assets.set_muted(settings_data.get("muted", False))
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
+    def _get_first_available_slot(self):
+        """ค้นหาช่องเซฟที่ว่างช่องแรก (1 - 5) เพื่อใช้เป็นสล็อตเริ่มต้นของเกมใหม่"""
+        try:
+            slots = SM.list_slots()
+            for s in slots:
+                if s.get("empty", False):
+                    return s["slot_id"]
+        except Exception:
+            pass
+        return 1
+
     def new_game(self, mission=None):
+        prev_color = self.vehicle.color_id if self.vehicle else getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
+        prev_type = self.vehicle.vehicle_type if self.vehicle else getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
+        prev_drill = self.vehicle.drill_head if self.vehicle else getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
+
+        self.current_slot = self._get_first_available_slot()
         self.game_mode = "mission"
         self.unlocked_floor = 1
         self.shop_tab = "upgrades"
         self.world = World(game_mode="mission", unlocked_floor=1)
         self.vehicle = Vehicle(
             S.HOME_COL, S.SURFACE_ROW - 1,
-            color_id=getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow"),
-            vehicle_type=getattr(S, "DEFAULT_VEHICLE_TYPE", "standard"),
-            drill_head=getattr(S, "DEFAULT_DRILL_HEAD", "spiral"),
+            color_id=prev_color,
+            vehicle_type=prev_type,
+            drill_head=prev_drill,
         )
         self.vehicle.on_resource_collected = self._on_resource_collected
         self.vehicle.on_dive_performed = self._on_dive_performed
@@ -75,10 +109,15 @@ class Game:
 
         self.mission = mission if mission is not None else missions.get_random_mission()
         self.state = PLAYING
-        self._toast(f"เริ่มภารกิจ: {self.mission.title} ({self.mission.diff_info['name']})")
+        self._toast(f"เริ่มภารกิจ: {self.mission.title} ({self.mission.diff_info['name']}) [ช่อง {self.current_slot}]")
 
     def new_game_classic(self):
         """เริ่มเล่นโหมดคลาสสิก: เล่นได้ไม่จำกัด (Unlimited) สะสมเงินเพื่อปลดล็อคชั้นความลึก"""
+        prev_color = self.vehicle.color_id if self.vehicle else getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow")
+        prev_type = self.vehicle.vehicle_type if self.vehicle else getattr(S, "DEFAULT_VEHICLE_TYPE", "standard")
+        prev_drill = self.vehicle.drill_head if self.vehicle else getattr(S, "DEFAULT_DRILL_HEAD", "spiral")
+
+        self.current_slot = self._get_first_available_slot()
         self.game_mode = "classic"
         self.unlocked_floor = 1
         self.mission = None
@@ -86,9 +125,9 @@ class Game:
         self.world = World(game_mode="classic", unlocked_floor=1)
         self.vehicle = Vehicle(
             S.HOME_COL, S.SURFACE_ROW - 1,
-            color_id=getattr(S, "DEFAULT_VEHICLE_COLOR", "yellow"),
-            vehicle_type=getattr(S, "DEFAULT_VEHICLE_TYPE", "standard"),
-            drill_head=getattr(S, "DEFAULT_DRILL_HEAD", "spiral"),
+            color_id=prev_color,
+            vehicle_type=prev_type,
+            drill_head=prev_drill,
         )
         self.vehicle.on_resource_collected = self._on_resource_collected
         self.vehicle.on_dive_performed = self._on_dive_performed
@@ -97,7 +136,7 @@ class Game:
         self.was_in_home = True
 
         self.state = PLAYING
-        self._toast("เริ่มโหมดคลาสสิก! ขุดอิสระไร้ขีดจำกัด สะสมเงินปลดล็อคชั้นความลึก", dur=3.5)
+        self._toast(f"เริ่มโหมดคลาสสิก! ขุดอิสระไร้ขีดจำกัด [ช่อง {self.current_slot}]", dur=3.5)
 
     def unlock_next_floor(self):
         """ปลดล็อคชั้นความลึกถัดไปในโหมดคลาสสิก (หักเหรียญและเปิดประตูกั้น)"""
@@ -148,9 +187,51 @@ class Game:
             return next_floor, S.get_floor_info(next_floor), barrier_row
         return None
 
-    def load_game(self):
+    def toggle_mute(self):
+        """สลับสถานะเปิด/ปิดเสียงทั้งหมด และบันทึกลง settings.json อัตโนมัติ"""
+        assets.toggle_mute()
+        muted = assets.is_muted()
+        SM.save_settings({"muted": muted})
+        if muted:
+            self._toast("ปิดเสียงทั้งหมด [M]", dur=1.8)
+        else:
+            self._toast("เปิดเสียงทั้งหมด [M]", dur=1.8)
+
+    def toggle_fullscreen(self):
+        """สลับโหมดเต็มจอโดยส่ง event K_F11"""
+        pygame.event.post(pygame.event.Event(
+            pygame.KEYDOWN,
+            key=pygame.K_F11, mod=0, unicode=""
+        ))
+
+    def save_slot(self, slot_id=None):
+        """บันทึกข้อมูลเกมลงในสล็อตที่ระบุ (1 - 5) หากไม่ระบุจะใช้ self.current_slot"""
+        if slot_id is None:
+            slot_id = self.current_slot
+        if self.world is None or self.vehicle is None:
+            return False
+
+        extra = {
+            "mission": self.mission.to_dict() if self.mission else None,
+            "game_mode": self.game_mode,
+            "unlocked_floor": self.unlocked_floor,
+        }
+        ok = SM.save_slot(slot_id, self.world, self.vehicle, extra=extra)
+        if ok:
+            self.current_slot = slot_id
+            assets.play_sound("upgrade", volume=0.6)
+            return True
+        return False
+
+    def load_slot(self, slot_id):
+        """โหลดข้อมูลเกมจากสล็อตที่ระบุ (1 - 5) และปรับคืนค่าสถานะเกมตามโหมดที่บันทึก"""
+        ok, data, meta = SM.load_slot(slot_id)
+        if not ok or not data:
+            err = meta.get("error", "ไฟล์มีปัญหาหรือไม่พบไฟล์")
+            self._toast(f"โหลดช่อง {slot_id} ไม่สำเร็จ: {err}")
+            return False
+
         try:
-            data = SM.load_game()
             self.world = World.from_dict(data["world"])
             self.vehicle = Vehicle(S.HOME_COL, S.SURFACE_ROW - 1)
             self.vehicle.load_dict(data["vehicle"])
@@ -170,24 +251,31 @@ class Game:
             else:
                 self.mission = None if self.game_mode == "classic" else missions.get_random_mission()
 
+            self.current_slot = slot_id
             self.state = PLAYING
+            assets.play_sound("click", volume=0.6)
             if self.game_mode == "classic":
-                self._toast(f"โหลดเกมสำเร็จ: โหมดคลาสสิก (ชั้นที่ {self.unlocked_floor})")
+                self._toast(f"โหลดช่อง {slot_id} สำเร็จ: โหมดคลาสสิก (ชั้นที่ {self.unlocked_floor})")
             else:
-                self._toast(f"โหลดเกมสำเร็จ: {self.mission.title}")
+                self._toast(f"โหลดช่อง {slot_id} สำเร็จ: {self.mission.title if self.mission else 'โหมดภารกิจ'}")
+            return True
         except Exception as e:
-            print(f"[Game] Load error: {e}, starting new game.")
+            self._toast(f"เกิดข้อผิดพลาดในการโหลดช่อง {slot_id}: {e}")
+            return False
+
+    def load_game(self, slot_id=None):
+        """โหลดเกม (หากไม่ระบุ slot_id จะเลือกโหลดสล็อตที่บันทึกล่าสุด)"""
+        target = slot_id
+        if target is None:
+            target = SM.get_latest_slot() or self.current_slot
+        if not self.load_slot(target):
             self.new_game()
 
     def save_and_quit(self):
-        extra = {
-            "mission": self.mission.to_dict() if self.mission else None,
-            "game_mode": self.game_mode,
-            "unlocked_floor": self.unlocked_floor,
-        }
-        SM.save_game(self.world, self.vehicle, extra=extra)
+        """บันทึกลงช่องปัจจุบันและกลับสู่เมนูหลัก"""
+        self.save_slot(self.current_slot)
         self.state = MENU
-        self._toast("บันทึกเกมแล้ว")
+        self._toast(f"บันทึกเกมลงช่อง {self.current_slot} และออกสู่เมนูหลัก")
 
     def _toast(self, msg, dur=2.5):
         self.toast_msg = msg
@@ -247,41 +335,188 @@ class Game:
         raw_pos = getattr(event, "pos", pygame.mouse.get_pos())
         mouse_pos = self._to_game_pos(raw_pos)
 
+        # สลับเปิด/ปิดเสียงได้ทุกหน้าด้วยปุ่ม M
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+            self.toggle_mute()
+            return
+
+        # 1. หน้าต่างเมนูหลัก (Main Menu: Play, Load, Setting, Exit)
         if self.state == MENU:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):
-                        if key == "classic":
-                            self.new_game_classic()
-                        elif key == "new":
-                            self.contract_options = missions.get_three_contract_options()
-                            self.state = CONTRACT
-                        elif key == "how_to_play":
+                        if key == "play":
                             self.previous_state = MENU
-                            self.state = HOW_TO_PLAY
-                        elif key == "continue":
-                            self.load_game()
-                        elif key == "quit":
+                            self.state = PLAY_SELECT
+                            assets.play_sound("click", volume=0.5)
+                        elif key in ("load", "load_game", "continue"):
+                            self.previous_state = MENU
+                            self.confirm_delete_slot = None
+                            self.confirm_overwrite_slot = None
+                            self.state = LOAD_MENU
+                            assets.play_sound("click", volume=0.5)
+                        elif key in ("setting", "how_to_play"):
+                            self.previous_state = MENU
+                            self.state = SETTINGS_MENU
+                            assets.play_sound("click", volume=0.5)
+                        elif key in ("exit", "quit"):
                             pygame.quit()
                             sys.exit()
+                        elif key == "classic":  # compatibility
+                            self.new_game_classic()
+                        elif key == "new":      # compatibility
+                            self.contract_options = missions.get_three_contract_options()
+                            self.state = CONTRACT
+            return
+
+        # 2. หน้าต่างเลือกโหมดการเล่น (Play Select: Mission Contracts / Classic Endless)
+        if self.state == PLAY_SELECT:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.state = MENU
+                assets.play_sound("click", volume=0.5)
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "mode_mission":
+                            self.contract_options = missions.get_three_contract_options()
+                            self.previous_state = PLAY_SELECT
+                            self.state = CONTRACT
+                            assets.play_sound("click", volume=0.5)
+                        elif key == "mode_classic":
+                            self.new_game_classic()
+                            assets.play_sound("click", volume=0.5)
+                        elif key == "back":
+                            self.state = MENU
+                            assets.play_sound("click", volume=0.5)
+            return
+
+        # 3. หน้าต่างตั้งค่าระบบ (Settings Menu)
+        if self.state == SETTINGS_MENU:
+            parent = MENU if self.previous_state not in (PAUSED, MENU) else self.previous_state
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.state = parent
+                assets.play_sound("click", volume=0.5)
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "toggle_mute":
+                            self.toggle_mute()
+                        elif key == "toggle_fullscreen":
+                            self.toggle_fullscreen()
+                        elif key == "how_to_play":
+                            self.previous_state = SETTINGS_MENU
+                            self.state = HOW_TO_PLAY
+                            assets.play_sound("click", volume=0.5)
+                        elif key == "back":
+                            self.state = parent
+                            assets.play_sound("click", volume=0.5)
+            return
+
+        # 4. หน้าต่างโหลดเกม 5 สล็อต (Load Menu)
+        if self.state == LOAD_MENU:
+            parent = MENU if self.previous_state not in (PAUSED, MENU) else self.previous_state
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.state = parent
+                self.confirm_delete_slot = None
+                assets.play_sound("click", volume=0.6)
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "back":
+                            self.state = parent
+                            self.confirm_delete_slot = None
+                            assets.play_sound("click", volume=0.6)
+                            return
+                        elif key.startswith("confirm_delete_"):
+                            sid = int(key.split("_")[-1])
+                            SM.delete_slot(sid)
+                            self.confirm_delete_slot = None
+                            self._toast(f"ลบข้อมูลช่อง {sid} เรียบร้อยแล้ว")
+                            assets.play_sound("rock_clink", volume=0.7)
+                            return
+                        elif key.startswith("load_slot_"):
+                            sid = int(key.split("_")[-1])
+                            self.load_slot(sid)
+                            return
+                        elif key.startswith("delete_slot_"):
+                            sid = int(key.split("_")[-1])
+                            self.confirm_delete_slot = sid
+                            assets.play_sound("click", volume=0.6)
+                            return
+            return
+
+        # 5. หน้าต่างบันทึกเกม 5 สล็อต (Save Menu จาก Pause)
+        if self.state == SAVE_MENU:
+            parent = PAUSED if self.previous_state not in (PAUSED, MENU) else self.previous_state
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.state = parent
+                self.confirm_delete_slot = None
+                self.confirm_overwrite_slot = None
+                assets.play_sound("click", volume=0.6)
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for key, rect in self.buttons.items():
+                    if rect.collidepoint(mouse_pos):
+                        if key == "back":
+                            self.state = parent
+                            self.confirm_delete_slot = None
+                            self.confirm_overwrite_slot = None
+                            assets.play_sound("click", volume=0.6)
+                            return
+                        elif key.startswith("confirm_delete_"):
+                            sid = int(key.split("_")[-1])
+                            SM.delete_slot(sid)
+                            self.confirm_delete_slot = None
+                            self._toast(f"ลบข้อมูลช่อง {sid} เรียบร้อยแล้ว")
+                            assets.play_sound("rock_clink", volume=0.7)
+                            return
+                        elif key.startswith("confirm_overwrite_"):
+                            sid = int(key.split("_")[-1])
+                            self.save_slot(sid)
+                            self.confirm_overwrite_slot = None
+                            self._toast(f"บันทึกทับช่อง {sid} เรียบร้อย!")
+                            self.state = self.previous_state if self.previous_state else PAUSED
+                            return
+                        elif key.startswith("save_slot_"):
+                            sid = int(key.split("_")[-1])
+                            slots = SM.list_slots()
+                            sinfo = slots[sid - 1] if (sid - 1) < len(slots) else {"empty": True}
+                            if sinfo.get("empty", False):
+                                self.save_slot(sid)
+                                self._toast(f"บันทึกเกมลงช่อง {sid} เรียบร้อย!")
+                                self.state = self.previous_state if self.previous_state else PAUSED
+                            else:
+                                self.confirm_overwrite_slot = sid
+                                self.confirm_delete_slot = None
+                                assets.play_sound("click", volume=0.6)
+                            return
+                        elif key.startswith("delete_slot_"):
+                            sid = int(key.split("_")[-1])
+                            self.confirm_delete_slot = sid
+                            self.confirm_overwrite_slot = None
+                            assets.play_sound("click", volume=0.6)
+                            return
             return
 
         if self.state == HOW_TO_PLAY:
             if event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_e, pygame.K_h, pygame.K_F1, pygame.K_SPACE, pygame.K_RETURN):
-                    self.state = self.previous_state
+                    self.state = self.previous_state if self.previous_state else MENU
                     return
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos) and key in ("close", "back"):
-                        self.state = self.previous_state
+                        self.state = self.previous_state if self.previous_state else MENU
                         assets.play_sound("click", volume=0.6)
                         return
             return
 
         if self.state == CONTRACT:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self.state = MENU
+                self.state = PLAY_SELECT if self.previous_state == PLAY_SELECT else MENU
                 return
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for key, rect in self.buttons.items():
@@ -297,7 +532,7 @@ class Game:
                         elif key == "reroll":
                             self.contract_options = missions.get_three_contract_options()
                         elif key == "back":
-                            self.state = MENU
+                            self.state = PLAY_SELECT if self.previous_state == PLAY_SELECT else MENU
             return
 
         if self.state == GARAGE:
@@ -364,9 +599,6 @@ class Game:
                     self.unlock_next_floor()
                 elif self.state == SHOP:
                     self.state = PLAYING
-            elif event.key == pygame.K_m:
-                assets.toggle_mute()
-                self._toast("ปิดเสียง" if assets.is_muted() else "เปิดเสียง")
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == PAUSED:
@@ -374,21 +606,31 @@ class Game:
                     if rect.collidepoint(mouse_pos):
                         if key == "resume":
                             self.state = PLAYING
-                        elif key == "how_to_play":
+                        elif key in ("save", "save_slots", "save_game"):
                             self.previous_state = PAUSED
-                            self.state = HOW_TO_PLAY
-                        elif key == "fullscreen":
-                            pygame.event.post(pygame.event.Event(
-                                pygame.KEYDOWN,
-                                key=pygame.K_F11, mod=0, unicode=""
-                            ))
-                        elif key == "save_quit":
+                            self.confirm_overwrite_slot = None
+                            self.confirm_delete_slot = None
+                            self.state = SAVE_MENU
+                            assets.play_sound("click", volume=0.6)
+                        elif key in ("load", "load_slots", "load_game"):
+                            self.previous_state = PAUSED
+                            self.confirm_delete_slot = None
+                            self.confirm_overwrite_slot = None
+                            self.state = LOAD_MENU
+                            assets.play_sound("click", volume=0.6)
+                        elif key in ("settings", "how_to_play"):
+                            self.previous_state = PAUSED
+                            self.state = SETTINGS_MENU
+                            assets.play_sound("click", volume=0.6)
+                        elif key in ("save_quit", "exit_menu", "menu", "quit_nosave"):
                             self.save_and_quit()
-                        elif key == "quit_nosave":
-                            pygame.quit()
-                            sys.exit()
+                        elif key == "save_current":
+                            self.save_slot(self.current_slot)
+                            self._toast(f"บันทึกเกมลงช่อง {self.current_slot} สำเร็จ!")
+                        elif key == "fullscreen":
+                            self.toggle_fullscreen()
                         elif key == "mute":
-                            assets.toggle_mute()
+                            self.toggle_mute()
             elif self.state == SHOP:
                 for key, rect in self.buttons.items():
                     if rect.collidepoint(mouse_pos):
@@ -531,16 +773,73 @@ class Game:
 
         if self.state == MENU:
             self.buttons = ui.draw_main_menu(self.screen, SM.save_exists(), mouse_pos)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
+            return
+
+        if self.state == PLAY_SELECT:
+            ui.draw_main_menu(self.screen, SM.save_exists(), (-1, -1))
+            self.buttons = ui.draw_play_select_menu(self.screen, mouse_pos)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
+            return
+
+        if self.state == SETTINGS_MENU:
+            if self.previous_state == PAUSED and self.world is not None and self.vehicle is not None:
+                ui.draw_sky_and_bg(self.screen, self.camera_y)
+                ui.draw_world(self.screen, self.world, self.camera_y)
+                ui.draw_home_and_shop(self.screen, self.camera_y)
+                ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
+                depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+                ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                            game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
+            else:
+                ui.draw_main_menu(self.screen, SM.save_exists(), (-1, -1))
+            self.buttons = ui.draw_settings_menu(self.screen, mouse_pos, is_fullscreen=self.is_fullscreen)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
+            return
+
+        if self.state == LOAD_MENU:
+            slots = SM.list_slots()
+            if self.previous_state == PAUSED and self.world is not None and self.vehicle is not None:
+                ui.draw_sky_and_bg(self.screen, self.camera_y)
+                ui.draw_world(self.screen, self.world, self.camera_y)
+                ui.draw_home_and_shop(self.screen, self.camera_y)
+                ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
+                depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+                ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                            game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
+            else:
+                ui.draw_main_menu(self.screen, SM.save_exists(), (-1, -1))
+            self.buttons = ui.draw_slot_menu(self.screen, slots, mode="load", mouse_pos=mouse_pos,
+                                             confirm_delete_slot=self.confirm_delete_slot,
+                                             current_slot=self.current_slot)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
+            return
+
+        if self.state == SAVE_MENU:
+            slots = SM.list_slots()
+            ui.draw_sky_and_bg(self.screen, self.camera_y)
+            ui.draw_world(self.screen, self.world, self.camera_y)
+            ui.draw_home_and_shop(self.screen, self.camera_y)
+            ui.draw_vehicle(self.screen, self.vehicle, self.camera_y)
+            depth = max(0, int(self.vehicle.y // S.TILE) - S.SURFACE_ROW)
+            ui.draw_hud(self.screen, self.vehicle, depth, self.mission,
+                        game_mode=self.game_mode, unlocked_floor=self.unlocked_floor)
+            self.buttons = ui.draw_slot_menu(self.screen, slots, mode="save", mouse_pos=mouse_pos,
+                                             confirm_delete_slot=self.confirm_delete_slot,
+                                             confirm_overwrite_slot=self.confirm_overwrite_slot,
+                                             current_slot=self.current_slot)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
             return
 
         if self.state == CONTRACT:
             # วาดฉากหลังเมนูแล้วเปิดหน้าต่างเลือกสัญญาภารกิจ
-            ui.draw_main_menu(self.screen, False, mouse_pos)
+            ui.draw_main_menu(self.screen, SM.save_exists(), (-1, -1))
             self.buttons = ui.draw_contract_menu(self.screen, self.contract_options, mouse_pos)
+            ui.draw_toast(self.screen, self.toast_msg, self.toast_timer, y=S.SCREEN_H - 68)
             return
 
         if self.state == GARAGE:
-            if self.previous_state in (MENU, CONTRACT) or self.world is None:
+            if self.previous_state in (MENU, CONTRACT, PLAY_SELECT) or self.world is None:
                 ui.draw_main_menu(self.screen, False, mouse_pos)
             else:
                 ui.draw_sky_and_bg(self.screen, self.camera_y)
@@ -557,7 +856,7 @@ class Game:
             return
 
         if self.state == HOW_TO_PLAY:
-            if self.previous_state in (MENU, CONTRACT) or self.world is None or self.vehicle is None:
+            if self.previous_state in (MENU, CONTRACT, PLAY_SELECT, SETTINGS_MENU) or self.world is None or self.vehicle is None:
                 ui.draw_main_menu(self.screen, SM.save_exists(), mouse_pos)
             else:
                 ui.draw_sky_and_bg(self.screen, self.camera_y)
@@ -632,7 +931,9 @@ class Game:
         if self.state == PLAYING:
             self.buttons = hud_buttons
         elif self.state == PAUSED:
-            self.buttons = ui.draw_pause_menu(self.screen, mouse_pos, is_fullscreen=self.is_fullscreen)
+            self.buttons = ui.draw_pause_menu(self.screen, mouse_pos,
+                                              is_fullscreen=self.is_fullscreen,
+                                              current_slot=self.current_slot)
         elif self.state == SHOP:
             self.buttons = ui.draw_shop_menu(self.screen, self.vehicle, mouse_pos,
                                              game_mode=self.game_mode,

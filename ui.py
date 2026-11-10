@@ -872,14 +872,15 @@ def draw_hint(surface, msg):
          center=True, shadow=False, max_w=rect.w - 16)
 
 
-def draw_toast(surface, msg, timer):
+def draw_toast(surface, msg, timer, y=None):
     if timer <= 0:
         return
     alpha = min(255, int(timer * 255))
     tw, th = FONT_M.size(msg)
     max_w = S.SCREEN_W - 40
     w = min(tw + 48, max_w)
-    rect = pygame.Rect((S.SCREEN_W - w) // 2, S.HUD_H + 34, w, 40)
+    toast_y = y if y is not None else (S.HUD_H + 34)
+    rect = pygame.Rect((S.SCREEN_W - w) // 2, toast_y, w, 40)
 
     panel = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
     pygame.draw.rect(panel, (20, 100, 48, min(220, alpha)),
@@ -1053,7 +1054,37 @@ def draw_contract_menu(surface, contracts, mouse_pos):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# เมนูหลัก (Main Menu)
+# ไอคอนลำโพง (Speaker Icon Helper)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_icon_speaker(surface, center, size=22, muted=False, color=None):
+    mcx, mcy = center
+    ic = color if color else (255, 255, 255)
+    scale = size / 22.0
+    pts = [
+        (mcx - int(8 * scale), mcy - int(6 * scale)),
+        (mcx - int(3 * scale), mcy - int(6 * scale)),
+        (mcx + int(2 * scale), mcy - int(11 * scale)),
+        (mcx + int(2 * scale), mcy + int(11 * scale)),
+        (mcx - int(3 * scale), mcy + int(6 * scale)),
+        (mcx - int(8 * scale), mcy + int(6 * scale))
+    ]
+    pygame.draw.polygon(surface, ic, pts)
+    if not muted:
+        for r, w in [(int(8 * scale), max(1, int(2 * scale))), (int(13 * scale), max(1, int(2 * scale)))]:
+            pygame.draw.arc(surface, ic,
+                            pygame.Rect(mcx + int(2 * scale) - r, mcy - r, r * 2, r * 2),
+                            math.radians(-50), math.radians(50), w)
+    else:
+        xc = color if color else (255, 110, 90)
+        pygame.draw.line(surface, xc, (mcx + int(5 * scale), mcy - int(9 * scale)),
+                         (mcx + int(15 * scale), mcy + int(9 * scale)), max(2, int(3 * scale)))
+        pygame.draw.line(surface, xc, (mcx + int(15 * scale), mcy - int(9 * scale)),
+                         (mcx + int(5 * scale), mcy + int(9 * scale)), max(2, int(3 * scale)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เมนูหลัก (Main Menu - 4 Main Buttons: Play, Load, Setting, Exit)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def draw_main_menu(surface, has_save, mouse_pos):
@@ -1075,161 +1106,469 @@ def draw_main_menu(surface, has_save, mouse_pos):
     cx = S.SCREEN_W // 2
     # เงาชื่อเกม
     sh = FONT_XL.render("DIG & TREASURE", True, (15, 35, 70))
-    surface.blit(sh, sh.get_rect(center=(cx + 3, 151)))
-    text(surface, "DIG & TREASURE", FONT_XL, (255, 215, 60), (cx, 148), center=True)
+    surface.blit(sh, sh.get_rect(center=(cx + 3, 141)))
+    text(surface, "DIG & TREASURE", FONT_XL, (255, 215, 60), (cx, 138), center=True)
     text(surface, "ขุดดิน ● หาสมบัติ ● ปลดล็อคชั้นความลึก ● ปรับแต่งรถขุด", FONT_M, (180, 210, 255),
-         (cx, 198), center=True)
+         (cx, 188), center=True)
 
-    pygame.draw.line(surface, (55, 80, 130), (cx - 180, 222), (cx + 180, 222), 1)
+    pygame.draw.line(surface, (55, 80, 130), (cx - 180, 212), (cx + 180, 212), 1)
 
     buttons = {}
-    y = 226
+    btn_w = 340
+    btn_h = 52
+    gap = 16
+    y = 246
 
-    # ─── 1. "Classic Mode" (โหมดคลาสสิก ขุดไร้ขีดจำกัด ปลดล็อคชั้นความลึก) ───
-    rect_classic = pygame.Rect(cx - 165, y, 330, 46)
-    button(surface, rect_classic, "โหมดคลาสสิก  (Classic Endless)", base=(170, 110, 25),
-           hover=rect_classic.collidepoint(mouse_pos))
-    draw_icon_lock(surface, (rect_classic.left + 10, rect_classic.centery - 10, 20, 20), color=(255, 225, 90))
-    buttons["classic"] = rect_classic
-    y += 54
+    # 1. "Play" (เล่นเกม)
+    r_play = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_play, "เล่นเกม  (Play)", FONT_L, base=(40, 130, 75),
+           hover=r_play.collidepoint(mouse_pos))
+    pcx, pcy = r_play.left + 26, r_play.centery
+    pygame.draw.polygon(surface, (180, 255, 180), [(pcx - 8, pcy - 10), (pcx + 10, pcy), (pcx - 8, pcy + 10)])
+    buttons["play"] = r_play
+    y += btn_h + gap
 
-    # ─── 2. "Mission Mode" (โหมดภารกิจผสมประจำตา) ───
-    rect_new = pygame.Rect(cx - 165, y, 330, 46)
-    button(surface, rect_new, "โหมดภารกิจ  (Mission Contracts)", base=(40, 125, 75),
-           hover=rect_new.collidepoint(mouse_pos))
-    gold_icon = pygame.transform.smoothscale(assets.get_image("res_gold"), (20, 20))
-    surface.blit(gold_icon, (rect_new.left + 10, rect_new.centery - 10))
-    buttons["new"] = rect_new
-    y += 54
+    # 2. "Load" (โหลดเกมจาก 5 สล็อต)
+    r_load = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    base_load = (45, 95, 160) if has_save else (45, 55, 75)
+    button(surface, r_load, "โหลดเกม  (Load)", FONT_L, base=base_load,
+           hover=r_load.collidepoint(mouse_pos))
+    dia_icon = pygame.transform.smoothscale(assets.get_image("res_diamond"), (22, 22))
+    surface.blit(dia_icon, (r_load.left + 16, r_load.centery - 11))
+    buttons["load"] = r_load
+    buttons["load_game"] = r_load
+    buttons["continue"] = r_load
+    y += btn_h + gap
 
-    # ─── 3. "How to Play" (วิธีเล่น & ปุ่มควบคุม) ───
-    rect_how = pygame.Rect(cx - 165, y, 330, 46)
-    button(surface, rect_how, "วิธีเล่น & ปุ่มควบคุม  (Controls)", base=(35, 105, 135),
-           hover=rect_how.collidepoint(mouse_pos))
-    draw_icon_help(surface, (rect_how.left + 10, rect_how.centery - 10, 20, 20))
-    buttons["how_to_play"] = rect_how
-    y += 54
+    # 3. "Setting" (ตั้งค่าเสียง / หน้าจอ / วิธีเล่น)
+    r_setting = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_setting, "ตั้งค่า  (Setting)", FONT_L, base=(35, 105, 135),
+           hover=r_setting.collidepoint(mouse_pos))
+    draw_icon_wrench(surface, (r_setting.left + 16, r_setting.centery - 10, 20, 20), color=(180, 235, 255))
+    buttons["setting"] = r_setting
+    buttons["how_to_play"] = r_setting   # compatibility for automated tests
+    y += btn_h + gap
 
-    if has_save:
-        # ─── 5. "Continue" (เล่นต่อจากเซฟ) ───
-        rect_cont = pygame.Rect(cx - 165, y, 330, 46)
-        button(surface, rect_cont, "เล่นต่อ  (Continue)", base=(55, 75, 140),
-               hover=rect_cont.collidepoint(mouse_pos))
-        dia_icon = pygame.transform.smoothscale(assets.get_image("res_diamond"), (20, 20))
-        surface.blit(dia_icon, (rect_cont.left + 10, rect_cont.centery - 10))
-        buttons["continue"] = rect_cont
-        y += 54
+    # 4. "Exit" (ออกจากเกม)
+    r_exit = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_exit, "ออกจากเกม  (Exit)", FONT_L, base=(125, 45, 50),
+           hover=r_exit.collidepoint(mouse_pos))
+    draw_icon_cross(surface, (r_exit.left + 26, r_exit.centery), 18, color=(255, 120, 120))
+    buttons["exit"] = r_exit
+    buttons["quit"] = r_exit
 
-    # ─── 6. "Quit" (ออกจากเกม) ───
-    rect_quit = pygame.Rect(cx - 165, y, 330, 46)
-    button(surface, rect_quit, "ออกจากเกม", base=(110, 45, 50),
-           hover=rect_quit.collidepoint(mouse_pos))
-    draw_icon_cross(surface, (rect_quit.left + 21, rect_quit.centery), 18, color=(220, 60, 60))
-    buttons["quit"] = rect_quit
-
-    # ข้อความเวอร์ชันชิดขวาล่าง
-    text(surface, "v1.3 — Classic Endless & Floor Unlock Mode", FONT_XS, (85, 95, 120),
+    # ข้อความเวอร์ชัน
+    text(surface, "v1.4 — Multi-Slot Save & 4-Button Menu", FONT_XS, (90, 105, 135),
          (S.SCREEN_W - 16, S.SCREEN_H - 14), right=True, max_w=300)
 
     return buttons
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# เมนู Pause
+# เมนูเลือกโหมดการเล่น (Play Mode Selection Menu)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def draw_pause_menu(surface, mouse_pos, is_fullscreen=False):
-    dim_overlay(surface, 175)
+def draw_play_select_menu(surface, mouse_pos):
+    dim_overlay(surface, 210)
     cx = S.SCREEN_W // 2
 
-    panel = pygame.Rect(cx - 170, 115, 340, 475)
-    _panel(surface, panel, bg=(20, 22, 34), border=(60, 68, 100), alpha=240, radius=16)
+    panel = pygame.Rect(cx - 270, 95, 540, 560)
+    _panel(surface, panel, bg=(18, 22, 34), border=(65, 80, 125), alpha=252, radius=18)
 
-    text(surface, "|| หยุดชั่วคราว (PAUSED)", FONT_L, (235, 240, 255),
-         (cx, panel.top + 34), center=True)
-    pygame.draw.line(surface, (50, 55, 80),
-                      (panel.left + 20, panel.top + 60), (panel.right - 20, panel.top + 60), 1)
+    text(surface, "เลือกโหมดการเล่น (Select Game Mode)", FONT_L, (240, 245, 255),
+         (cx, panel.top + 26), center=True)
+    text(surface, "เลือกรูปแบบการผจญภัยและเป้าหมายของคุณ", FONT_XS, (160, 175, 205),
+         (cx, panel.top + 54), center=True)
+    pygame.draw.line(surface, (50, 60, 85),
+                     (panel.left + 20, panel.top + 76), (panel.right - 20, panel.top + 76), 1)
 
     buttons = {}
-    y = panel.top + 72
+    card_w = 480
+    card_h = 170
+    x0 = panel.left + 30
 
-    # ─── Pause menu buttons with real icons ───
-    # 1. "Resume" — green play triangle icon
-    r_resume = pygame.Rect(cx - 140, y, 280, 42)
-    button(surface, r_resume, "เล่นต่อ", base=(40, 130, 70),
-           hover=r_resume.collidepoint(mouse_pos))
-    pcx, pcy = r_resume.left + 22, r_resume.centery
-    pygame.draw.polygon(surface, (180, 255, 180), [(pcx - 7, pcy - 8), (pcx + 8, pcy), (pcx - 7, pcy + 8)])
-    buttons["resume"] = r_resume
-    y += 52
+    # 1. Card: โหมดภารกิจสัญญา (Mission Contracts)
+    y_m = panel.top + 96
+    card_m = pygame.Rect(x0, y_m, card_w, card_h)
+    is_hov_m = card_m.collidepoint(mouse_pos)
+    _panel(surface, card_m, bg=(24, 46, 36) if is_hov_m else (20, 36, 30),
+           border=(70, 185, 110) if is_hov_m else (50, 120, 75), alpha=245, radius=12)
 
-    # 2. "How to Play" — question mark icon
-    r_how = pygame.Rect(cx - 140, y, 280, 42)
-    button(surface, r_how, "วิธีเล่น & ปุ่มควบคุม  [H]", base=(35, 105, 135),
-           hover=r_how.collidepoint(mouse_pos))
-    draw_icon_help(surface, (r_how.left + 12, r_how.centery - 10, 20, 20))
+    gold_icon = pygame.transform.smoothscale(assets.get_image("res_gold"), (32, 32))
+    surface.blit(gold_icon, (card_m.left + 20, card_m.top + 20))
+    text(surface, "โหมดภารกิจสัญญา  (Mission Contracts)", FONT_M, (120, 240, 160),
+         (card_m.left + 64, card_m.top + 24))
+    text(surface, "• สุ่มข้อเสนอสัญญา 3 ระดับความยาก (Easy, Medium, Hard)", FONT_S, (210, 230, 220),
+         (card_m.left + 24, card_m.top + 66))
+    text(surface, "• สะสมเหรียญรางวัล พิชิตเป้าหมายขุดแร่และดำดิ่งลึก", FONT_S, (210, 230, 220),
+         (card_m.left + 24, card_m.top + 94))
+
+    btn_play_m = pygame.Rect(card_m.right - 146, card_m.bottom - 42, 130, 32)
+    button(surface, btn_play_m, "เลือกโหมดนี้ >", FONT_XS, base=(40, 130, 75), hover=is_hov_m)
+    buttons["mode_mission"] = card_m
+
+    # 2. Card: โหมดคลาสสิก (Classic Endless)
+    y_c = card_m.bottom + 20
+    card_c = pygame.Rect(x0, y_c, card_w, card_h)
+    is_hov_c = card_c.collidepoint(mouse_pos)
+    _panel(surface, card_c, bg=(52, 38, 20) if is_hov_c else (40, 28, 16),
+           border=(220, 160, 50) if is_hov_c else (150, 105, 35), alpha=245, radius=12)
+
+    dia_icon = pygame.transform.smoothscale(assets.get_image("res_diamond"), (32, 32))
+    surface.blit(dia_icon, (card_c.left + 20, card_c.top + 20))
+    text(surface, "โหมดคลาสสิก  (Classic Endless)", FONT_M, (255, 215, 60),
+         (card_c.left + 64, card_c.top + 24))
+    text(surface, "• ขุดลึกไม่จำกัดรอบ อิสระตามใจ ไร้เงื่อนไขเวลา", FONT_S, (240, 230, 205),
+         (card_c.left + 24, card_c.top + 66))
+    text(surface, "• สะสมเหรียญเพื่อปลดล็อคประตูกั้นชั้นความลึก 4 ชั้น", FONT_S, (240, 230, 205),
+         (card_c.left + 24, card_c.top + 94))
+
+    btn_play_c = pygame.Rect(card_c.right - 146, card_c.bottom - 42, 130, 32)
+    button(surface, btn_play_c, "เลือกโหมดนี้ >", FONT_XS, base=(170, 110, 25), hover=is_hov_c)
+    buttons["mode_classic"] = card_c
+
+    # ปุ่มย้อนกลับ
+    back_rect = pygame.Rect(cx - 90, panel.bottom - 44, 180, 34)
+    button(surface, back_rect, "< กลับไปเมนูหลัก", FONT_S, base=(95, 45, 55),
+           hover=back_rect.collidepoint(mouse_pos))
+    buttons["back"] = back_rect
+
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# เมนูตั้งค่าระบบ (Settings Menu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_settings_menu(surface, mouse_pos, is_fullscreen=False):
+    dim_overlay(surface, 210)
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(cx - 240, 110, 480, 510)
+    _panel(surface, panel, bg=(18, 22, 34), border=(65, 80, 125), alpha=252, radius=18)
+
+    text(surface, "ตั้งค่าระบบ (Settings)", FONT_L, (240, 245, 255),
+         (cx, panel.top + 26), center=True)
+    text(surface, "ปรับแต่งเสียง การแสดงผล และดูวิธีเล่น", FONT_XS, (160, 175, 205),
+         (cx, panel.top + 54), center=True)
+    pygame.draw.line(surface, (50, 60, 85),
+                     (panel.left + 20, panel.top + 76), (panel.right - 20, panel.top + 76), 1)
+
+    buttons = {}
+    btn_w = 400
+    btn_h = 56
+    gap = 18
+    y = panel.top + 100
+
+    # 1. Toggle Audio Mute
+    muted = assets.is_muted()
+    r_mute = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    _panel(surface, r_mute, bg=(38, 24, 28) if muted else (22, 40, 32),
+           border=(180, 65, 65) if muted else (60, 160, 95), alpha=240, radius=10)
+    draw_icon_speaker(surface, (r_mute.left + 30, r_mute.centery), size=24, muted=muted,
+                      color=(255, 120, 100) if muted else (140, 255, 180))
+    status_audio = "ปิดเสียงอยู่ (Muted)" if muted else "เปิดเสียงปกติ (Sound On)"
+    status_color = (255, 140, 120) if muted else (120, 240, 160)
+    text(surface, "ระบบเสียงเอฟเฟกต์  [คีย์ M]", FONT_M, (240, 245, 255), (r_mute.left + 64, r_mute.top + 10))
+    text(surface, f"สถานะ: {status_audio}", FONT_XS, status_color, (r_mute.left + 64, r_mute.top + 34))
+    buttons["toggle_mute"] = r_mute
+    y += btn_h + gap
+
+    # 2. Toggle Fullscreen
+    r_fs = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    _panel(surface, r_fs, bg=(26, 34, 52), border=(70, 110, 180), alpha=240, radius=10)
+    draw_icon_tier(surface, (r_fs.left + 20, r_fs.centery - 10, 20, 20), color=(120, 190, 255))
+    status_fs = "เต็มจอ (Fullscreen)" if is_fullscreen else "หน้าต่างปกติ (Windowed)"
+    text(surface, "โหมดการแสดงผล  [คีย์ F11]", FONT_M, (240, 245, 255), (r_fs.left + 64, r_fs.top + 10))
+    text(surface, f"สถานะ: {status_fs}", FONT_XS, (160, 210, 255), (r_fs.left + 64, r_fs.top + 34))
+    buttons["toggle_fullscreen"] = r_fs
+    y += btn_h + gap
+
+    # 3. How to Play
+    r_how = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    _panel(surface, r_how, bg=(30, 36, 52), border=(80, 120, 175), alpha=240, radius=10)
+    draw_icon_help(surface, (r_how.left + 20, r_how.centery - 10, 20, 20))
+    text(surface, "คู่มือวิธีเล่น & ปุ่มควบคุม", FONT_M, (240, 245, 255), (r_how.left + 64, r_how.top + 10))
+    text(surface, "ดูคำแนะนำการบังคับรถ ขุดบล็อก และเทคนิค Gravity Slam", FONT_XS, (170, 190, 220), (r_how.left + 64, r_how.top + 34))
     buttons["how_to_play"] = r_how
-    y += 52
+    y += btn_h + gap + 10
 
-    # 3. "Fullscreen" — F11 monitor icon
-    fs_label = "ออกจากเต็มจอ  [F11]" if is_fullscreen else "เต็มจอ  [F11]"
-    r_fs = pygame.Rect(cx - 140, y, 280, 42)
-    button(surface, r_fs, fs_label, base=(55, 75, 130),
-           hover=r_fs.collidepoint(mouse_pos))
-    mx, my2 = r_fs.left + 10, r_fs.centery - 8
-    pygame.draw.rect(surface, (200, 215, 240), (mx, my2, 22, 14), border_radius=2)
-    pygame.draw.rect(surface, (80, 100, 140), (mx, my2, 22, 14), 1, border_radius=2)
-    pygame.draw.rect(surface, (80, 100, 140), (mx + 8, my2 + 14, 6, 4))
-    buttons["fullscreen"] = r_fs
-    y += 52
+    # ปุ่มย้อนกลับ
+    back_rect = pygame.Rect(cx - 90, panel.bottom - 44, 180, 34)
+    button(surface, back_rect, "< กลับ", FONT_S, base=(95, 45, 55),
+           hover=back_rect.collidepoint(mouse_pos))
+    buttons["back"] = back_rect
 
-    # 4. "Save & Quit" — coin/save icon (coin = value, progress)
-    r_sq = pygame.Rect(cx - 140, y, 280, 42)
-    button(surface, r_sq, "บันทึกและออก", base=(130, 95, 35),
-           hover=r_sq.collidepoint(mouse_pos))
-    coin_icon = pygame.transform.smoothscale(assets.get_image("res_coin"), (22, 22))
-    surface.blit(coin_icon, (r_sq.left + 10, r_sq.centery - 11))
-    buttons["save_quit"] = r_sq
-    y += 52
+    return buttons
 
-    # 5. "Quit without save" — red cross icon
-    r_qn = pygame.Rect(cx - 140, y, 280, 42)
-    button(surface, r_qn, "ออกโดยไม่บันทึก", base=(120, 42, 42),
-           hover=r_qn.collidepoint(mouse_pos))
-    draw_icon_cross(surface, (r_qn.left + 22, r_qn.centery), 18, color=(220, 60, 60))
-    buttons["quit_nosave"] = r_qn
-    y += 50
 
-    # 6. ปุ่มเปิด/ปิดเสียง
-    muted    = assets.is_muted()
-    btn_size = 44
-    mute_rect = pygame.Rect(cx - btn_size // 2, y + 4, btn_size, btn_size)
-    is_hov   = mute_rect.collidepoint(mouse_pos)
-    btn_col  = (130, 42, 42) if muted else (40, 110, 65)
-    if is_hov:
-        btn_col = tuple(min(255, c + 30) for c in btn_col)
-    pygame.draw.circle(surface, btn_col, mute_rect.center, btn_size // 2)
-    pygame.draw.circle(surface, (40, 44, 60), mute_rect.center, btn_size // 2, 2)
+# ─────────────────────────────────────────────────────────────────────────────
+# เมนู Pause (Pause Menu - คลีน กระชับ เป็นระเบียบ ไม่ใช้อีโมจิ)
+# ─────────────────────────────────────────────────────────────────────────────
 
-    mcx, mcy = mute_rect.center
-    ic = (255, 255, 255)
-    pts = [(mcx-8, mcy-6),(mcx-3, mcy-6),(mcx+2, mcy-11),
-           (mcx+2, mcy+11),(mcx-3, mcy+6),(mcx-8, mcy+6)]
-    pygame.draw.polygon(surface, ic, pts)
-    if not muted:
-        for r, w in [(8, 2), (13, 2)]:
-            pygame.draw.arc(surface, ic,
-                            pygame.Rect(mcx+2-r, mcy-r, r*2, r*2),
-                            math.radians(-50), math.radians(50), w)
+def draw_pause_menu(surface, mouse_pos, is_fullscreen=False, current_slot=1):
+    dim_overlay(surface, 195)
+    cx = S.SCREEN_W // 2
+
+    panel_w = 340
+    panel_h = 370
+    panel = pygame.Rect(cx - panel_w // 2, (S.SCREEN_H - panel_h) // 2, panel_w, panel_h)
+    _panel(surface, panel, bg=(18, 22, 34), border=(65, 75, 115), alpha=248, radius=16)
+
+    text(surface, "หยุดชั่วคราว (PAUSED)", FONT_L, (240, 245, 255),
+         (cx, panel.top + 26), center=True)
+    pygame.draw.line(surface, (50, 58, 85),
+                     (panel.left + 24, panel.top + 52), (panel.right - 24, panel.top + 52), 1)
+
+    buttons = {}
+    btn_w = 280
+    btn_h = 44
+    gap = 12
+    y = panel.top + 66
+
+    # 1. เล่นต่อ (Resume)
+    r_resume = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_resume, "เล่นต่อ  (Resume)", FONT_M, base=(36, 110, 68),
+           hover=r_resume.collidepoint(mouse_pos))
+    buttons["resume"] = r_resume
+    y += btn_h + gap
+
+    # 2. บันทึกเกม (Save Game)
+    r_save = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_save, f"บันทึกเกม  (Save Game)", FONT_M, base=(36, 52, 78),
+           hover=r_save.collidepoint(mouse_pos))
+    buttons["save"] = r_save
+    buttons["save_game"] = r_save
+    buttons["save_slots"] = r_save
+    buttons["save_current"] = r_save
+    y += btn_h + gap
+
+    # 3. โหลดเกม (Load Game)
+    r_load = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_load, "โหลดเกม  (Load Game)", FONT_M, base=(34, 44, 66),
+           hover=r_load.collidepoint(mouse_pos))
+    buttons["load"] = r_load
+    buttons["load_game"] = r_load
+    buttons["load_slots"] = r_load
+    y += btn_h + gap
+
+    # 4. ตั้งค่าระบบ (Settings)
+    r_settings = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_settings, "ตั้งค่าระบบ  (Settings)", FONT_M, base=(34, 44, 66),
+           hover=r_settings.collidepoint(mouse_pos))
+    buttons["settings"] = r_settings
+    buttons["how_to_play"] = r_settings   # compatibility for automated tests
+    y += btn_h + gap
+
+    # 5. ออกไปเมนูหลัก (Exit to Main Menu)
+    r_exit = pygame.Rect(cx - btn_w // 2, y, btn_w, btn_h)
+    button(surface, r_exit, "ออกไปเมนูหลัก  (Exit to Menu)", FONT_M, base=(95, 38, 45),
+           hover=r_exit.collidepoint(mouse_pos))
+    buttons["save_quit"] = r_exit
+    buttons["exit_menu"] = r_exit
+    buttons["quit_nosave"] = r_exit
+    buttons["menu"] = r_exit
+
+    # คำแนะนำปุ่มลัดด้านล่าง
+    text(surface, "กด [Esc] เล่นต่อ  •  [M] เปิด/ปิดเสียง", FONT_XS, (140, 155, 185),
+         (cx, panel.bottom - 18), center=True)
+
+    return buttons
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# หน้าต่างจัดการช่องเซฟ 5 สล็อต (Multi-Slot Save/Load Menu)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def draw_slot_menu(surface, slots, mode="load", mouse_pos=(0, 0),
+                   confirm_delete_slot=None, confirm_overwrite_slot=None, current_slot=1):
+    """
+    หน้าต่างแสดงช่องบันทึกเกม 5 สล็อต (Slot 1 - 5):
+    - mode="load": สำหรับเลือกโหลดเกม หรือลบเซฟ
+    - mode="save": สำหรับเลือกสล็อตบันทึกเกม (หากมีข้อมูลแล้วจะถามยืนยันเขียนทับ)
+    """
+    dim_overlay(surface, 215)
+    cx = S.SCREEN_W // 2
+
+    panel = pygame.Rect(30, 20, S.SCREEN_W - 60, 770)
+    _panel(surface, panel, bg=(18, 22, 34), border=(65, 80, 125), alpha=252, radius=18)
+
+    # ส่วนหัว
+    if mode == "load":
+        title_txt = "เลือกช่องบันทึกเพื่อโหลดเกม (Load Game)"
+        sub_txt = "เลือกข้อมูลเกมจากช่องบันทึกเพื่อเล่นต่อ (แยกเก็บ 5 สล็อตอิสระ)"
+        head_col = (110, 205, 255)
     else:
-        xc = (255, 110, 90)
-        pygame.draw.line(surface, xc, (mcx+5, mcy-9), (mcx+15, mcy+9), 3)
-        pygame.draw.line(surface, xc, (mcx+15, mcy-9), (mcx+5, mcy+9), 3)
+        title_txt = "เลือกช่องเพื่อบันทึกเกม (Save Game)"
+        sub_txt = "เลือกช่องสล็อตที่ต้องการบันทึกข้อมูลเกม (บันทึกทับต้องยืนยัน)"
+        head_col = (255, 215, 60)
 
-    lbl = "ปิดเสียงอยู่" if muted else "เปิดเสียง"
-    text(surface, lbl, FONT_XS, (190, 200, 220),
-         (mute_rect.centerx, mute_rect.bottom + 8), center=True)
-    buttons["mute"] = mute_rect
+    text(surface, title_txt, FONT_L, head_col, (cx, panel.top + 16), center=True)
+    text(surface, sub_txt, FONT_XS, (175, 190, 220), (cx, panel.top + 42), center=True)
+    pygame.draw.line(surface, (50, 60, 85), (panel.left + 20, panel.top + 60), (panel.right - 20, panel.top + 60), 1)
+
+    buttons = {}
+    slot_h = 108
+    slot_gap = 12
+    start_y = panel.top + 72
+
+    for i in range(1, 6):
+        s_info = slots[i - 1] if (i - 1) < len(slots) else {"slot_id": i, "empty": True}
+        card_rect = pygame.Rect(panel.left + 16, start_y + (i - 1) * (slot_h + slot_gap), panel.w - 32, slot_h)
+        is_card_hov = card_rect.collidepoint(mouse_pos)
+        is_cur = (current_slot == i)
+        is_empty = s_info.get("empty", False)
+        is_corrupted = s_info.get("corrupted", False)
+
+        if is_empty:
+            card_bg = (20, 24, 36) if not is_card_hov else (28, 34, 48)
+            card_border = (48, 56, 75) if not is_card_hov else (75, 90, 125)
+            _panel(surface, card_rect, bg=card_bg, border=card_border, alpha=230, radius=10)
+
+            # เลขช่อง
+            slot_badge = pygame.Rect(card_rect.left + 14, card_rect.top + 12, 90, 24)
+            pygame.draw.rect(surface, (34, 40, 56), slot_badge, border_radius=4)
+            pygame.draw.rect(surface, (60, 72, 98), slot_badge, 1, border_radius=4)
+            text(surface, f"ช่องที่ {i}", FONT_S, (180, 195, 220), slot_badge.center, center=True)
+
+            text(surface, "(ช่องว่าง - ยังไม่มีข้อมูลเกม)", FONT_M, (130, 145, 170),
+                 (card_rect.left + 120, card_rect.top + 12))
+            text(surface, "สามารถเลือกบันทึกเกมลงในช่องนี้ได้ตลอดเวลา", FONT_XS, (110, 125, 150),
+                 (card_rect.left + 120, card_rect.top + 42))
+
+            if mode == "save":
+                btn_save = pygame.Rect(card_rect.right - 150, card_rect.centery - 18, 136, 36)
+                button(surface, btn_save, "บันทึกที่นี่", FONT_S, base=(40, 130, 70),
+                       hover=btn_save.collidepoint(mouse_pos))
+                draw_icon_check(surface, (btn_save.left + 18, btn_save.centery), 14)
+                buttons[f"save_slot_{i}"] = btn_save
+            buttons[f"card_slot_{i}"] = card_rect
+            continue
+
+        if is_corrupted:
+            _panel(surface, card_rect, bg=(38, 20, 24), border=(160, 50, 50), alpha=240, radius=10)
+            slot_badge = pygame.Rect(card_rect.left + 14, card_rect.top + 12, 90, 24)
+            pygame.draw.rect(surface, (56, 24, 28), slot_badge, border_radius=4)
+            text(surface, f"ช่องที่ {i}", FONT_S, (255, 120, 120), slot_badge.center, center=True)
+            text(surface, "ไฟล์บันทึกมีปัญหา / เสียหาย", FONT_M, (255, 120, 120),
+                 (card_rect.left + 120, card_rect.top + 12))
+            text(surface, "ไม่สามารถอ่านข้อมูลได้ กรุณาลบแล้วเริ่มใหม่", FONT_XS, (200, 140, 140),
+                 (card_rect.left + 120, card_rect.top + 42))
+
+            del_btn = pygame.Rect(card_rect.right - 110, card_rect.centery - 18, 96, 36)
+            button(surface, del_btn, "ลบไฟล์", FONT_S, base=(120, 42, 42),
+                   hover=del_btn.collidepoint(mouse_pos))
+            buttons[f"delete_slot_{i}"] = del_btn
+            buttons[f"card_slot_{i}"] = card_rect
+            continue
+
+        # มีข้อมูลเซฟปกติ
+        summary = s_info.get("summary", {})
+        gmode = s_info.get("game_mode", "mission")
+        saved_at = s_info.get("saved_at", "")
+
+        card_bg = (24, 28, 42) if not is_card_hov else (32, 38, 56)
+        card_border = (80, 140, 220) if is_cur else ((60, 72, 100) if not is_card_hov else (100, 130, 185))
+        _panel(surface, card_rect, bg=card_bg, border=card_border, alpha=240, radius=10)
+
+        # ป้ายเลขช่อง
+        slot_badge = pygame.Rect(card_rect.left + 14, card_rect.top + 10, 80, 22)
+        badge_bg = (40, 70, 120) if is_cur else (32, 40, 58)
+        pygame.draw.rect(surface, badge_bg, slot_badge, border_radius=4)
+        pygame.draw.rect(surface, (90, 130, 190), slot_badge, 1, border_radius=4)
+        text(surface, f"ช่องที่ {i}", FONT_S, (230, 240, 255), slot_badge.center, center=True)
+
+        # ป้ายโหมด
+        mode_badge = pygame.Rect(card_rect.left + 100, card_rect.top + 10, 106, 22)
+        if gmode == "classic":
+            m_bg, m_border, m_tc = (52, 38, 18), (190, 140, 45), (255, 215, 60)
+            m_label = "โหมดคลาสสิก"
+        else:
+            m_bg, m_border, m_tc = (20, 46, 30), (55, 160, 85), (95, 235, 135)
+            m_label = "โหมดภารกิจ"
+        pygame.draw.rect(surface, m_bg, mode_badge, border_radius=4)
+        pygame.draw.rect(surface, m_border, mode_badge, 1, border_radius=4)
+        text(surface, m_label, FONT_XS, m_tc, mode_badge.center, center=True)
+
+        if is_cur:
+            text(surface, "[ช่องปัจจุบัน]", FONT_XS, (255, 215, 90), (card_rect.left + 214, card_rect.top + 12))
+
+        # ชื่อหัวข้อ / เป้าหมาย
+        title_disp = summary.get("title", "ข้อมูลเกม")
+        text(surface, title_disp, FONT_M, (255, 255, 255), (card_rect.left + 14, card_rect.top + 38), max_w=280)
+
+        # วันเวลาที่เซฟ
+        if saved_at:
+            text(surface, f"บันทึก: {saved_at}", FONT_XS, (150, 165, 195), (card_rect.left + 14, card_rect.top + 64))
+
+        # ข้อมูลทรัพยากร: เหรียญ และ ความลึก
+        coins_val = summary.get("coins", 0)
+        depth_val = summary.get("depth", 0)
+
+        stat_x = card_rect.left + 305
+        stat_y = card_rect.top + 28
+        coin_img = pygame.transform.smoothscale(assets.get_image("res_coin"), (18, 18))
+        surface.blit(coin_img, (stat_x, stat_y))
+        text(surface, f"{coins_val:,} G", FONT_S, (255, 220, 80), (stat_x + 22, stat_y))
+
+        # ความลึก
+        text(surface, f"ลึก: {depth_val}ม.", FONT_XS, (160, 195, 235), (stat_x + 22, stat_y + 26))
+
+        # ปุ่มการทำงานด้านขวาของการ์ด
+        right_btn_x = card_rect.right - 146
+        btn_y = card_rect.centery - 18
+
+        if mode == "load":
+            if confirm_delete_slot == i:
+                btn_del_conf = pygame.Rect(right_btn_x - 30, btn_y, 164, 36)
+                button(surface, btn_del_conf, "ยืนยันลบ?", FONT_S, base=(175, 45, 45),
+                       hover=btn_del_conf.collidepoint(mouse_pos))
+                draw_icon_cross(surface, (btn_del_conf.left + 16, btn_del_conf.centery), 14)
+                buttons[f"confirm_delete_{i}"] = btn_del_conf
+            else:
+                btn_load = pygame.Rect(right_btn_x, btn_y, 92, 36)
+                button(surface, btn_load, "โหลด", FONT_S, base=(40, 115, 175),
+                       hover=btn_load.collidepoint(mouse_pos))
+                buttons[f"load_slot_{i}"] = btn_load
+
+                # ปุ่มลบ
+                btn_del = pygame.Rect(card_rect.right - 48, btn_y, 36, 36)
+                button(surface, btn_del, "", FONT_S, base=(95, 38, 42),
+                       hover=btn_del.collidepoint(mouse_pos))
+                draw_icon_cross(surface, btn_del.center, 14, color=(235, 100, 100))
+                buttons[f"delete_slot_{i}"] = btn_del
+        else:
+            # mode == 'save'
+            if confirm_overwrite_slot == i:
+                btn_ow_conf = pygame.Rect(card_rect.right - 160, btn_y, 148, 36)
+                button(surface, btn_ow_conf, "ยืนยันเขียนทับ!", FONT_S, base=(190, 60, 45),
+                       hover=btn_ow_conf.collidepoint(mouse_pos))
+                buttons[f"confirm_overwrite_{i}"] = btn_ow_conf
+            elif confirm_delete_slot == i:
+                btn_del_conf = pygame.Rect(right_btn_x - 40, btn_y, 174, 36)
+                button(surface, btn_del_conf, "ยืนยันลบ?", FONT_S, base=(175, 45, 45),
+                       hover=btn_del_conf.collidepoint(mouse_pos))
+                draw_icon_cross(surface, (btn_del_conf.left + 16, btn_del_conf.centery), 14)
+                buttons[f"confirm_delete_{i}"] = btn_del_conf
+            else:
+                btn_save = pygame.Rect(card_rect.right - 146, btn_y, 92, 36)
+                button(surface, btn_save, "เขียนทับ", FONT_S, base=(140, 85, 35),
+                       hover=btn_save.collidepoint(mouse_pos))
+                buttons[f"save_slot_{i}"] = btn_save
+
+                btn_del = pygame.Rect(card_rect.right - 48, btn_y, 36, 36)
+                button(surface, btn_del, "", FONT_S, base=(95, 38, 42),
+                       hover=btn_del.collidepoint(mouse_pos))
+                draw_icon_cross(surface, btn_del.center, 14, color=(235, 100, 100))
+                buttons[f"delete_slot_{i}"] = btn_del
+
+        buttons[f"card_slot_{i}"] = card_rect
+
+    # ปุ่มปิด / กลับ
+    back_rect = pygame.Rect(cx - 100, panel.bottom - 46, 200, 36)
+    button(surface, back_rect, "< กลับ", FONT_M, base=(95, 45, 55),
+           hover=back_rect.collidepoint(mouse_pos))
+    buttons["back"] = back_rect
     return buttons
 
 
@@ -1587,13 +1926,13 @@ def draw_garage_menu(surface, vehicle, mouse_pos, active_tab="color"):
     panel = pygame.Rect(25, 45, 670, 715)
     _panel(surface, panel, bg=(18, 20, 32), border=(65, 75, 115), alpha=252, radius=18)
 
-    # ส่วนหัว + แสดงเหรียญสะสมของผู้เล่นมุมขวาบน
-    text(surface, "อู่แต่งรถขุด (Vehicle Hangar & Garage)", FONT_L, (240, 245, 255),
-         (cx, panel.top + 24), center=True)
-    text(surface, "ปลดล็อคสีตัวถัง โครงสร้างรถ และหัวขุดพิเศษด้วยเงื่อนไขความก้าวหน้า + เหรียญ", FONT_XS,
-         (160, 175, 205), (cx, panel.top + 50), center=True)
+    # ส่วนหัว: วางชิดซ้าย และกล่องเหรียญสะสมวางชิดขวา ป้องกันข้อความทับซ้อนกัน 100%
+    text(surface, "อู่แต่งรถขุด (Vehicle Garage)", FONT_L, (240, 245, 255),
+         (panel.left + 22, panel.top + 16))
+    text(surface, "ปลดล็อคสีตัวถัง โครงสร้างรถ และหัวขุดพิเศษด้วยเหรียญ", FONT_XS,
+         (160, 175, 205), (panel.left + 22, panel.top + 45))
 
-    coin_box = pygame.Rect(panel.right - 165, panel.top + 14, 145, 30)
+    coin_box = pygame.Rect(panel.right - 148, panel.top + 18, 128, 30)
     _panel(surface, coin_box, bg=(28, 32, 48), border=(220, 180, 55), alpha=240, radius=8)
     coin_icon = pygame.transform.smoothscale(assets.get_image("res_coin"), (18, 18))
     surface.blit(coin_icon, (coin_box.left + 8, coin_box.centery - 9))
