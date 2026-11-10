@@ -61,9 +61,13 @@ class World:
             self._apply_floor_barriers()
 
     def _apply_floor_barriers(self):
-        """วางแถบประตูกั้นชั้นความลึกตามการปลดล็อค"""
+        """วางแถบประตูกั้นชั้นความลึกตามการปลดล็อค (ชั้น 7 เป็นชั้นสุดท้าย ไม่มีประตูกั้นหลังจากนั้น)"""
+        max_classic = getattr(S, "MAX_CLASSIC_FLOORS", 7)
         for floor_cfg in getattr(S, "CLASSIC_FLOORS", []):
             floor_num = floor_cfg["floor"]
+            # ชั้นสุดท้าย (ชั้น 7) ไม่ต้องมีประตูกั้นหลังจากนั้น เป็นบล็อกขุดต่อเนื่องเรื่อยๆ
+            if floor_num >= max_classic:
+                continue
             max_depth = floor_cfg["max_depth"]
             row = S.SURFACE_ROW + max_depth
             if row >= self.rows:

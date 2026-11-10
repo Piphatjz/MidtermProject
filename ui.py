@@ -752,13 +752,22 @@ def _hud_zone_right(surface, vehicle, mission=None, game_mode="mission", unlocke
 
     # ---------- โหมดคลาสสิก: ติดตามการปลดล็อคชั้นความลึก (Floor Unlock Tracker) ----------
     if game_mode == "classic":
+        max_flr = getattr(S, "MAX_CLASSIC_FLOORS", 7)
         # คำนวณชั้นปัจจุบันตามความลึก
         cur_floor = 1
         for fc in getattr(S, "CLASSIC_FLOORS", []):
             if depth >= fc["min_depth"]:
                 cur_floor = fc["floor"]
-        if depth > S.CLASSIC_FLOORS[-1]["max_depth"]:
-            cur_floor = len(S.CLASSIC_FLOORS) + 1 + (depth - S.CLASSIC_FLOORS[-1]["max_depth"]) // 50
+
+        all_unlocked = (unlocked_floor >= max_flr)
+
+        if all_unlocked:
+            _panel(surface, panel, bg=(34, 30, 20), border=(255, 215, 60), alpha=235, radius=10)
+            draw_icon_star(surface, (panel.left + 16, panel.top + 16), 16)
+            text(surface, f"ชั้นที่ {cur_floor} (ไร้ขีดจำกัด)", FONT_S, (255, 220, 80), (panel.left + 36, panel.top + 7))
+            text(surface, "ปลดล็อคครบทุกชั้นแล้ว!", FONT_S, (120, 245, 150), (panel.left + 14, panel.top + 33))
+            text(surface, "ขุดสำรวจใต้พิภพได้อย่างไร้สิ้นสุด", FONT_XS, (190, 205, 230), (panel.left + 14, panel.top + 57))
+            return
 
         next_floor = unlocked_floor + 1
         next_info = S.get_floor_info(next_floor)
@@ -773,7 +782,7 @@ def _hud_zone_right(surface, vehicle, mission=None, game_mode="mission", unlocke
         # แถว 1: ตราสัญลักษณ์โหมดคลาสสิก + ชั้นปัจจุบัน & ปลดล็อค
         draw_icon_lock(surface, (panel.left + 10, panel.top + 9, 16, 16), color=(255, 215, 60))
         text(surface, f"ชั้นที่ {cur_floor}", FONT_XS, (255, 215, 60), (panel.left + 30, panel.top + 8))
-        text(surface, f"ปลดล็อคถึงชั้น {unlocked_floor}", FONT_S, (235, 240, 255), (panel.left + 82, panel.top + 7), max_w=panel.w - 88)
+        text(surface, f"ปลดล็อคถึงชั้น {unlocked_floor}/{max_flr}", FONT_S, (235, 240, 255), (panel.left + 82, panel.top + 7), max_w=panel.w - 88)
 
         # แถว 2: หลอดความคืบหน้าการปลดล็อคชั้นถัดไป
         bar_w = panel.w - 24
@@ -1647,60 +1656,74 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
 
     # ==================== แท็บ 2: ปลดล็อคชั้นความลึก (Classic Floor Unlock) ====================
     if game_mode == "classic" and active_tab == "floor":
-        next_floor = unlocked_floor + 1
-        next_info = S.get_floor_info(next_floor)
-        cur_info = S.get_floor_info(unlocked_floor)
-        cost = next_info["unlock_cost"]
-        can_unlock = (vehicle.coins >= cost)
-
-        # การ์ดชั้นถัดไป
-        card = pygame.Rect(panel.left + 20, panel.top + 96, panel.w - 40, 174)
-        _panel(surface, card, bg=(32, 28, 24) if can_unlock else (26, 26, 36),
-               border=(255, 215, 60) if can_unlock else (75, 75, 100), alpha=240, radius=12)
-
-        draw_icon_lock(surface, (card.left + 14, card.top + 13, 22, 22),
-                       color=(255, 215, 60) if can_unlock else (210, 95, 95))
-        text(surface, f"ชั้นถัดไป: ชั้นที่ {next_floor} - {next_info['name']}", FONT_M, (255, 235, 120),
-             (card.left + 42, card.top + 13), max_w=card.w - 56)
-
-        text(surface, f"ความลึก: {next_info['min_depth']} - {next_info['max_depth']} เมตร  (ชั้นปัจจุบันปลดล็อคถึง {cur_info['max_depth']}ม.)",
-             FONT_S, (120, 215, 255), (card.left + 16, card.top + 44), max_w=card.w - 32)
-        text(surface, next_info["desc"], FONT_XS, (200, 210, 230),
-             (card.left + 16, card.top + 70), max_w=card.w - 32)
-
-        cost_col = (255, 215, 60) if can_unlock else (245, 110, 110)
-        cost_lbl = f"ค่าปลดล็อค: {cost:,} เหรียญ" if can_unlock else f"ค่าปลดล็อค: {cost:,} เหรียญ  (ขาดอีก {cost - vehicle.coins:,} เหรียญ)"
-        text(surface, cost_lbl, FONT_S, cost_col, (card.left + 16, card.top + 95), max_w=card.w - 32)
-
-        # ปุ่มปลดล็อค
-        btn_unlock = pygame.Rect(card.left + 16, card.top + 120, card.w - 32, 40)
-        if can_unlock:
-            button(surface, btn_unlock, f"ปลดล็อคชั้นที่ {next_floor}  ({cost:,} เหรียญ)",
-                   FONT_M, base=(40, 150, 75), hover=btn_unlock.collidepoint(mouse_pos))
-            draw_icon_star(surface, (btn_unlock.left + 22, btn_unlock.centery), 16)
+        max_classic = getattr(S, "MAX_CLASSIC_FLOORS", 7)
+        if unlocked_floor >= max_classic:
+            card = pygame.Rect(panel.left + 20, panel.top + 96, panel.w - 40, 160)
+            _panel(surface, card, bg=(36, 32, 20), border=(255, 215, 60), alpha=245, radius=12)
+            draw_icon_star(surface, (card.left + 24, card.top + 28), 20)
+            text(surface, "ปลดล็อคครบทุกชั้นสมบูรณ์แล้ว! (ชั้นที่ 7 - ไร้ขีดจำกัด)", FONT_M, (255, 225, 90),
+                 (card.left + 54, card.top + 18), max_w=card.w - 68)
+            text(surface, "คุณได้ปลดล็อคทุกประตูกั้นในโลกใต้พิภพครบถ้วนแล้ว!", FONT_S, (120, 245, 140),
+                 (card.left + 54, card.top + 48), max_w=card.w - 68)
+            text(surface, "หลังจากชั้น 7 เป็นต้นไป จะเป็นชั้นหินและสายแร่ทอดยาวอย่างไม่มีที่สิ้นสุด", FONT_XS, (220, 230, 245),
+                 (card.left + 20, card.top + 80), max_w=card.w - 40)
+            text(surface, "สามารถขุดสำรวจ ขุดสะสมทองคำและเพชรพลอยได้อย่างอิสระโดยไม่ต้องปลดล็อคอีกต่อไป!", FONT_XS, (190, 205, 230),
+                 (card.left + 20, card.top + 106), max_w=card.w - 40)
         else:
-            button(surface, btn_unlock, f"เหรียญยังไม่พอ  (ต้องการ {cost:,} เหรียญ)",
-                   FONT_M, base=(65, 55, 60), hover=btn_unlock.collidepoint(mouse_pos))
-            draw_icon_lock(surface, (btn_unlock.left + 14, btn_unlock.centery - 9, 18, 18), (210, 110, 110))
-        buttons["unlock_floor"] = btn_unlock
+            next_floor = unlocked_floor + 1
+            next_info = S.get_floor_info(next_floor)
+            cur_info = S.get_floor_info(unlocked_floor)
+            cost = next_info["unlock_cost"]
+            can_unlock = (vehicle.coins >= cost)
+
+            # การ์ดชั้นถัดไป
+            card = pygame.Rect(panel.left + 20, panel.top + 96, panel.w - 40, 174)
+            _panel(surface, card, bg=(32, 28, 24) if can_unlock else (26, 26, 36),
+                   border=(255, 215, 60) if can_unlock else (75, 75, 100), alpha=240, radius=12)
+
+            draw_icon_lock(surface, (card.left + 14, card.top + 13, 22, 22),
+                           color=(255, 215, 60) if can_unlock else (210, 95, 95))
+            text(surface, f"ชั้นถัดไป: ชั้นที่ {next_floor} - {next_info['name']}", FONT_M, (255, 235, 120),
+                 (card.left + 42, card.top + 13), max_w=card.w - 56)
+
+            text(surface, f"ความลึก: {next_info['min_depth']} - {next_info['max_depth']} เมตร  (ชั้นปัจจุบันปลดล็อคถึง {cur_info['max_depth']}ม.)",
+                 FONT_S, (120, 215, 255), (card.left + 16, card.top + 44), max_w=card.w - 32)
+            text(surface, next_info["desc"], FONT_XS, (200, 210, 230),
+                 (card.left + 16, card.top + 70), max_w=card.w - 32)
+
+            cost_col = (255, 215, 60) if can_unlock else (245, 110, 110)
+            cost_lbl = f"ค่าปลดล็อค: {cost:,} เหรียญ" if can_unlock else f"ค่าปลดล็อค: {cost:,} เหรียญ  (ขาดอีก {cost - vehicle.coins:,} เหรียญ)"
+            text(surface, cost_lbl, FONT_S, cost_col, (card.left + 16, card.top + 95), max_w=card.w - 32)
+
+            # ปุ่มปลดล็อค
+            btn_unlock = pygame.Rect(card.left + 16, card.top + 120, card.w - 32, 40)
+            if can_unlock:
+                button(surface, btn_unlock, f"ปลดล็อคชั้นที่ {next_floor}  ({cost:,} เหรียญ)",
+                       FONT_M, base=(40, 150, 75), hover=btn_unlock.collidepoint(mouse_pos))
+                draw_icon_star(surface, (btn_unlock.left + 22, btn_unlock.centery), 16)
+            else:
+                button(surface, btn_unlock, f"เหรียญยังไม่พอ  (ต้องการ {cost:,} เหรียญ)",
+                       FONT_M, base=(65, 55, 60), hover=btn_unlock.collidepoint(mouse_pos))
+                draw_icon_lock(surface, (btn_unlock.left + 14, btn_unlock.centery - 9, 18, 18), (210, 110, 110))
+            buttons["unlock_floor"] = btn_unlock
 
         # รายการทำเนียบชั้นความลึก
-        list_rect = pygame.Rect(panel.left + 20, panel.top + 282, panel.w - 40, 236)
+        list_rect = pygame.Rect(panel.left + 20, panel.top + 274, panel.w - 40, 244)
         _panel(surface, list_rect, bg=(24, 26, 38), border=(50, 56, 78), radius=12)
         text(surface, "ทำเนียบชั้นความลึกทั้งหมด (Floor Directory)", FONT_S, (210, 225, 250),
-             (list_rect.centerx, list_rect.top + 18), center=True)
+             (list_rect.centerx, list_rect.top + 16), center=True)
         pygame.draw.line(surface, (45, 52, 74),
-                         (list_rect.left + 14, list_rect.top + 34), (list_rect.right - 14, list_rect.top + 34), 1)
+                         (list_rect.left + 14, list_rect.top + 32), (list_rect.right - 14, list_rect.top + 32), 1)
 
-        for i, fc in enumerate(S.CLASSIC_FLOORS[:6]):
-            row_y = list_rect.top + 42 + i * 30
+        for i, fc in enumerate(S.CLASSIC_FLOORS[:7]):
+            row_y = list_rect.top + 38 + i * 29
             f_num = fc["floor"]
             is_unlocked = (f_num <= unlocked_floor)
 
             f_col = (110, 245, 130) if is_unlocked else (160, 170, 190)
             if is_unlocked:
                 draw_icon_check(surface, (list_rect.left + 20, row_y + 9), 14)
-                status_txt = "ปลดล็อคแล้ว"
+                status_txt = "ปลดล็อคแล้ว (ชั้นสุดท้าย)" if f_num == max_classic else "ปลดล็อคแล้ว"
                 status_col = (110, 245, 130)
             else:
                 draw_icon_lock(surface, (list_rect.left + 13, row_y + 2, 14, 14), (170, 150, 120))
@@ -1708,8 +1731,9 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
                 status_col = (235, 155, 80)
 
             short_name = fc["name"].split(" (")[0]
-            text(surface, f"ชั้น {f_num}: {short_name} ({fc['min_depth']}-{fc['max_depth']}ม.)",
-                 FONT_XS, f_col, (list_rect.left + 36, row_y + 2), max_w=295)
+            depth_str = f"{fc['min_depth']}ม.+" if f_num == max_classic else f"{fc['min_depth']}-{fc['max_depth']}ม."
+            text(surface, f"ชั้น {f_num}: {short_name} ({depth_str})",
+                 FONT_XS, f_col, (list_rect.left + 36, row_y + 2), max_w=280)
             text(surface, status_txt, FONT_XS, status_col, (list_rect.right - 16, row_y + 2), right=True)
 
         close_rect = pygame.Rect(cx - 90, panel.bottom - 48, 180, 36)
@@ -1778,18 +1802,25 @@ def draw_shop_menu(surface, vehicle, mouse_pos, game_mode="mission", unlocked_fl
 
     # แบนเนอร์แจ้งเตือนปลดล็อคชั้น (โหมดคลาสสิก - คลิกเพื่อสลับไปแท็บปลดล็อคชั้นได้ทันที)
     if game_mode == "classic":
-        next_floor = unlocked_floor + 1
-        next_cost = S.get_floor_info(next_floor)["unlock_cost"]
-        can_flr = (vehicle.coins >= next_cost)
+        max_classic = getattr(S, "MAX_CLASSIC_FLOORS", 7)
         teaser_rect = pygame.Rect(panel.left + 16, y + 2, panel.w - 32, 36)
         is_t_hov = teaser_rect.collidepoint(mouse_pos)
-        _panel(surface, teaser_rect, bg=(52, 42, 24) if (can_flr and is_t_hov) else ((42, 34, 20) if can_flr else (26, 28, 40)),
-               border=(255, 215, 60) if can_flr else (85, 100, 135), radius=8)
-        draw_icon_lock(surface, (teaser_rect.left + 10, teaser_rect.centery - 8, 16, 16),
-                       color=(255, 215, 60) if can_flr else (200, 210, 230))
-        t_msg = f"ชั้นถัดไป: ชั้น {next_floor} ({next_cost:,} เหรียญ) -> พร้อมปลดล็อค! คลิกที่นี่" if can_flr else f"ชั้นถัดไป: ชั้น {next_floor} ({next_cost:,} เหรียญ) -> คลิกเพื่อดูข้อมูลชั้น"
-        t_col = (255, 235, 140) if can_flr else (190, 205, 230)
-        text(surface, t_msg, FONT_XS, t_col, (teaser_rect.left + 32, teaser_rect.centery - 7), max_w=teaser_rect.w - 40)
+        if unlocked_floor >= max_classic:
+            _panel(surface, teaser_rect, bg=(38, 34, 22), border=(255, 215, 60), radius=8)
+            draw_icon_star(surface, (teaser_rect.left + 16, teaser_rect.centery), 14)
+            text(surface, "ปลดล็อคครบทุกชั้นแล้ว! ขุดสำรวจชั้น 7 ได้ต่อเนื่องไม่สิ้นสุด", FONT_S, (255, 225, 100),
+                 (teaser_rect.left + 36, teaser_rect.centery - 8), max_w=teaser_rect.w - 45)
+        else:
+            next_floor = unlocked_floor + 1
+            next_cost = S.get_floor_info(next_floor)["unlock_cost"]
+            can_flr = (vehicle.coins >= next_cost)
+            _panel(surface, teaser_rect, bg=(52, 42, 24) if (can_flr and is_t_hov) else ((42, 34, 20) if can_flr else (26, 28, 40)),
+                   border=(255, 215, 60) if can_flr else (85, 100, 135), radius=8)
+            draw_icon_lock(surface, (teaser_rect.left + 10, teaser_rect.centery - 8, 16, 16),
+                           color=(255, 215, 60) if can_flr else (200, 210, 230))
+            t_msg = f"ชั้นถัดไป: ชั้น {next_floor} ({next_cost:,} เหรียญ) -> พร้อมปลดล็อค! คลิกที่นี่" if can_flr else f"ชั้นถัดไป: ชั้น {next_floor} ({next_cost:,} เหรียญ) -> คลิกเพื่อดูข้อมูลชั้น"
+            t_col = (255, 235, 140) if can_flr else (190, 205, 230)
+            text(surface, t_msg, FONT_XS, t_col, (teaser_rect.left + 32, teaser_rect.centery - 7), max_w=teaser_rect.w - 40)
         buttons["teaser_floor"] = teaser_rect
 
     close_rect = pygame.Rect(cx - 90, panel.bottom - 46, 180, 36)

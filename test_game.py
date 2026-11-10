@@ -390,7 +390,37 @@ def run_tests():
     # Next barrier (Floor 2 max depth: 45 -> row 48) should still be locked
     b_row_flr2 = S.SURFACE_ROW + S.CLASSIC_FLOORS[1]["max_depth"]
     assert c_loaded.world.tiles[b_row_flr2][2] == S.T_BARRIER
-    print("  -> Classic mode barrier mechanics, unlock flow, and persistence verified OK.")
+
+    # Verify Floor 7 is the final floor and continuous endless mining afterwards
+    assert getattr(S, "MAX_CLASSIC_FLOORS", 7) == 7
+    assert len(S.CLASSIC_FLOORS) == 7
+    assert S.CLASSIC_FLOORS[6]["floor"] == 7
+    c_game.unlocked_floor = 6
+    c_game.vehicle.coins = 5000
+    assert c_game.unlock_next_floor(), "Should unlock Floor 7 successfully"
+    assert c_game.unlocked_floor == 7
+    assert not c_game.unlock_next_floor(), "Floor 7 is the final floor; no further unlocks permitted"
+    assert c_game.get_barrier_near_vehicle() is None, "No barriers should be detected when Floor 7 is unlocked"
+
+    # Verify no barriers exist anywhere in Floor 7 or below (continuous blocks)
+    for r in range(S.SURFACE_ROW + 201, min(c_game.world.rows, S.SURFACE_ROW + 350)):
+        for c in range(S.COLS):
+            assert c_game.world.tiles[r][c] != S.T_BARRIER, f"Row {r} col {c} in Floor 7 must not be T_BARRIER"
+
+    # Verify Shop floor tab shows completed state without unlock button
+    c_game.shop_tab = "floor"
+    shop_buttons_f7 = ui.draw_shop_menu(screen, c_game.vehicle, (100, 100),
+                                        game_mode=c_game.game_mode,
+                                        unlocked_floor=7,
+                                        active_tab="floor")
+    assert "close" in shop_buttons_f7
+    assert "unlock_floor" not in shop_buttons_f7, "Unlock button must not be present when all floors are unlocked"
+
+    # Verify HUD shows completed state
+    ui.draw_hud(screen, c_game.vehicle, depth=250, mouse_pos=(100, 100),
+                game_mode="classic", unlocked_floor=7)
+
+    print("  -> Classic mode barrier mechanics, unlock flow, Floor 7 final cap, and persistence verified OK.")
 
     # ==================== Test HUD Cleanliness, Stalled Behavior, Dive Count & Vector Goal Icons ====================
     print("Testing HUD Cleanliness, Stalled Behavior, Single-Count Gravity Slam & Vector Goal Icons...")

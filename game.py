@@ -143,6 +143,11 @@ class Game:
         if self.game_mode != "classic" or self.world is None or self.vehicle is None:
             return False
 
+        max_classic = getattr(S, "MAX_CLASSIC_FLOORS", 7)
+        if self.unlocked_floor >= max_classic:
+            self._toast("คุณได้ปลดล็อคชั้นทั้งหมดแล้ว! ขุดสำรวจได้ไร้ขีดจำกัด", dur=3.0)
+            return False
+
         next_floor = self.unlocked_floor + 1
         floor_info = S.get_floor_info(next_floor)
         cost = floor_info["unlock_cost"]
@@ -170,13 +175,20 @@ class Game:
             self.particles.spawn_spark(c * S.TILE + S.TILE // 2, by + S.TILE // 2, (90, 220, 255))
             self.particles.spawn_diamond_spark(c * S.TILE + S.TILE // 2, by + S.TILE // 2)
 
-        self._toast(f"ปลดล็อค {floor_info['name']} สำเร็จ! เปิดทางสู่ความลึก {floor_info['min_depth']}ม.+", dur=3.8)
+        if next_floor >= max_classic:
+            self._toast(f"ปลดล็อค {floor_info['name']} สำเร็จ! ปลดล็อคครบทุกชั้นแล้ว ขุดสำรวจโลกใต้พิภพได้ไร้ขีดจำกัด!", dur=4.5)
+        else:
+            self._toast(f"ปลดล็อค {floor_info['name']} สำเร็จ! เปิดทางสู่ความลึก {floor_info['min_depth']}ม.+", dur=3.8)
         return True
 
     def get_barrier_near_vehicle(self):
         """คืนค่า (next_floor, floor_info, barrier_row) หากรถขุดอยู่ใกล้ประตูกั้นชั้นที่ล็อคอยู่"""
         if getattr(self, "game_mode", "mission") != "classic" or self.world is None or self.vehicle is None:
             return None
+        max_classic = getattr(S, "MAX_CLASSIC_FLOORS", 7)
+        if self.unlocked_floor >= max_classic:
+            return None  # ปลดล็อคครบทุกชั้นแล้ว ไม่มีประตูกั้นอีกต่อไป
+
         next_floor = self.unlocked_floor + 1
         prev_floor_info = S.get_floor_info(self.unlocked_floor)
         barrier_depth = prev_floor_info["max_depth"]
@@ -742,7 +754,7 @@ class Game:
                 self._toast("เติมพลังงานเต็มแล้ว")
 
             # แจ้งเตือนหากเหรียญสะสมเพียงพอสำหรับการปลดล็อคชั้นถัดไปในโหมดคลาสสิก
-            if getattr(self, "game_mode", "mission") == "classic":
+            if getattr(self, "game_mode", "mission") == "classic" and self.unlocked_floor < getattr(S, "MAX_CLASSIC_FLOORS", 7):
                 next_floor = self.unlocked_floor + 1
                 next_cost = S.get_floor_info(next_floor)["unlock_cost"]
                 if self.vehicle.coins >= next_cost:
@@ -875,8 +887,8 @@ class Game:
         ui.draw_world(self.screen, self.world, self.camera_y)
         ui.draw_home_and_shop(self.screen, self.camera_y)
 
-        # หากอยู่ในโหมดคลาสสิก วาดป้ายประตูกั้นชั้นถัดไปที่ลอยอยู่เหนือประตู
-        if getattr(self, "game_mode", "mission") == "classic":
+        # หากอยู่ในโหมดคลาสสิก วาดป้ายประตูกั้นชั้นถัดไปที่ลอยอยู่เหนือประตู (หากยังไม่ปลดล็อคชั้นสุดท้าย)
+        if getattr(self, "game_mode", "mission") == "classic" and self.unlocked_floor < getattr(S, "MAX_CLASSIC_FLOORS", 7):
             next_flr = self.unlocked_floor + 1
             flr_info = S.get_floor_info(next_flr)
             ui.draw_barrier_gate_banner(self.screen, flr_info, self.vehicle.coins, self.camera_y)

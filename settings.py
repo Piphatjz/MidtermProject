@@ -91,6 +91,8 @@ ROCK_MIN_DRILL_LEVEL = 2   # ต้องอัพเกรดหัวขุด
 ROCK_LAYER_DEPTH = 40       # ความลึกตั้งแต่ 40 ช่องลงไปเป็นชั้นหินล้วน (สำหรับโหมดภารกิจ)
 
 # ---------- โหมดคลาสสิก: ชั้นความลึกและค่าปลดล็อค (Classic Endless Floors) ----------
+MAX_CLASSIC_FLOORS = 7  # ชั้น 7 เป็นชั้นสุดท้ายที่ต้องปลดล็อค หลังจากนั้นขุดได้เรื่อยๆ โดยไม่มีประตูกั้นอีก
+
 CLASSIC_FLOORS = [
     {
         "floor": 1,
@@ -146,40 +148,23 @@ CLASSIC_FLOORS = [
         "desc": "ความลึกระดับตำนาน ขุมทรัพย์ไร้ขีดจำกัด",
         "theme_color": (255, 80, 140),
     },
+    {
+        "floor": 7,
+        "name": "แกนลึกไร้ที่สิ้นสุด (The Endless Void)",
+        "min_depth": 201,
+        "max_depth": 999999,
+        "unlock_cost": 2800,
+        "desc": "ชั้นสุดท้าย! ปลดล็อคแล้วขุดได้เรื่อยๆ ไร้ขีดจำกัด ไม่มีประตูกั้นอีกต่อไป",
+        "theme_color": (255, 215, 50),
+    },
 ]
 
 
 def get_floor_info(floor_num):
-    """คืนค่าพารามิเตอร์ของชั้น floor_num (รองรับลึกอนันต์ / Unlimited procedural scaling)"""
+    """คืนค่าพารามิเตอร์ของชั้น floor_num (ชั้น 7 เป็นชั้นสุดท้าย หลังจากนั้นเป็นบล็อกต่อเนื่องไม่มีประตูกั้น)"""
     if 1 <= floor_num <= len(CLASSIC_FLOORS):
         return CLASSIC_FLOORS[floor_num - 1]
-
-    # คำนวณอัตโนมัติสำหรับชั้นที่ 7+ (เล่นได้ไม่จำกัดตามคำขอ unlimited play)
-    extra_tiers = floor_num - len(CLASSIC_FLOORS)
-    prev_max = CLASSIC_FLOORS[-1]["max_depth"]
-    step = 50
-    min_d = prev_max + (extra_tiers - 1) * step + 1
-    max_d = min_d + step - 1
-    cost = 1800 + extra_tiers * 800
-
-    colors = [
-        (255, 215, 0),
-        (0, 255, 200),
-        (255, 105, 180),
-        (138, 43, 226),
-        (255, 69, 0),
-    ]
-    theme_col = colors[(floor_num - 1) % len(colors)]
-
-    return {
-        "floor": floor_num,
-        "name": f"ชั้นไร้สิ้นสุดระดับ {floor_num} (Deep Realm {floor_num})",
-        "min_depth": min_d,
-        "max_depth": max_d,
-        "unlock_cost": cost,
-        "desc": f"ชั้นความลึกอนันต์ {min_d}-{max_d} เมตร สะสมสมบัติได้ไม่มีวันสิ้นสุด",
-        "theme_color": theme_col,
-    }
+    return CLASSIC_FLOORS[-1]
 
 
 # ---------- รถขุด (ค่าเริ่มต้น และการอัพเกรด) ----------
@@ -235,7 +220,7 @@ GRAV_DRILL_MULT = 3.00          # ตัวคูณพลังเจาะก�
 GRAV_DECAY_RATE = 0.65          # อัตราการใช้พลังงานศักย์ขณะพุ่งดิ่งลงมา (ต่อวินาที)
 
 # ---------- เงื่อนไขจบเกม ----------
-STARTING_COINS = 0             # เหรียญเริ่มต้นสำหรับเกมใหม่
+STARTING_COINS = 10000             # เหรียญเริ่มต้นสำหรับเกมใหม่
 VICTORY_COIN_TARGET = 1500     # เป้าหมายเหรียญเดิม (สำรอง)
 END_ON_ENERGY_EMPTY = True     # พลังงานหมดกลางทาง (ไม่อยู่บ้าน) = จบเกม
 END_ON_TARGET_RESOURCE = True  # สำเร็จภารกิจผสมครบทุกข้อ = จบเกม (ชนะ)
