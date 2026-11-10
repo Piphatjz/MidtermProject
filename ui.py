@@ -1839,107 +1839,121 @@ def draw_how_to_play(surface, mouse_pos):
     dim_overlay(surface, 225)
     cx = S.SCREEN_W // 2
 
-    panel = pygame.Rect(25, 20, 670, 770)
+    panel = pygame.Rect(25, 24, 670, 762)
     _panel(surface, panel, bg=(18, 22, 34), border=(65, 80, 125), alpha=252, radius=18)
 
     # ส่วนหัว
     draw_icon_help(surface, (panel.left + 24, panel.top + 18, 28, 28), color=(255, 220, 75))
     text(surface, "วิธีเล่น & ปุ่มควบคุม (How to Play)", FONT_L, (255, 220, 75),
          (cx, panel.top + 20), center=True)
-    text(surface, "คู่มือการควบคุมรถขุด เทคนิคขุดเจาะ และเป้าหมายเกม", FONT_XS,
-         (175, 190, 220), (cx, panel.top + 45), center=True)
+    text(surface, "สรุปวิธีเล่น การควบคุมรถขุด และเป้าหมายเกม", FONT_S,
+         (175, 190, 220), (cx, panel.top + 48), center=True)
     pygame.draw.line(surface, (50, 60, 85),
-                     (panel.left + 20, panel.top + 64), (panel.right - 20, panel.top + 64), 1)
+                     (panel.left + 20, panel.top + 70), (panel.right - 20, panel.top + 70), 1)
 
     buttons = {}
 
-    # ─── การ์ด 1: การเคลื่อนที่ & ขุดเจาะ ───
-    c1 = pygame.Rect(panel.left + 16, panel.top + 72, panel.w - 32, 144)
+    # ─── การ์ด 1: การบังคับ & ขุดเจาะ ───
+    c1 = pygame.Rect(panel.left + 16, panel.top + 78, panel.w - 32, 172)
     _panel(surface, c1, bg=(24, 28, 42), border=(55, 68, 98), alpha=235, radius=12)
-    text(surface, "1. การเคลื่อนที่ & ขุดเจาะ (Movement & Digging)", FONT_M, (120, 215, 255),
-         (c1.left + 16, c1.top + 9))
+    text(surface, "1. การบังคับรถขุด & เจาะดิน (Controls & Digging)", FONT_M, (120, 215, 255),
+         (c1.left + 16, c1.top + 10))
 
-    # คีย์บอร์ด
-    draw_key_badge(surface, "W", c1.left + 16, c1.top + 34, min_w=28, h=24)
-    draw_key_badge(surface, "A", c1.left + 50, c1.top + 34, min_w=28, h=24)
-    draw_key_badge(surface, "S", c1.left + 84, c1.top + 34, min_w=28, h=24)
-    draw_key_badge(surface, "D", c1.left + 118, c1.top + 34, min_w=28, h=24)
-    text(surface, "หรือ", FONT_XS, (160, 175, 200), (c1.left + 158, c1.top + 38))
-    draw_key_badge(surface, "↑", c1.left + 188, c1.top + 34, min_w=26, h=24)
-    draw_key_badge(surface, "←", c1.left + 218, c1.top + 34, min_w=26, h=24)
-    draw_key_badge(surface, "↓", c1.left + 248, c1.top + 34, min_w=26, h=24)
-    draw_key_badge(surface, "→", c1.left + 278, c1.top + 34, min_w=26, h=24)
-    text(surface, "หรือคลิกเมาส์ซ้ายค้างตามทิศทาง", FONT_XS, (190, 210, 235), (c1.left + 320, c1.top + 38))
+    # แถว 1: คีย์บอร์ด & ทิศทาง
+    draw_key_badge(surface, "W", c1.left + 16, c1.top + 36, min_w=28, h=24)
+    draw_key_badge(surface, "A", c1.left + 50, c1.top + 36, min_w=28, h=24)
+    draw_key_badge(surface, "S", c1.left + 84, c1.top + 36, min_w=28, h=24)
+    draw_key_badge(surface, "D", c1.left + 118, c1.top + 36, min_w=28, h=24)
+    text(surface, "หรือ", FONT_S, (160, 175, 200), (c1.left + 158, c1.top + 39))
+    draw_key_badge(surface, "↑", c1.left + 188, c1.top + 36, min_w=26, h=24)
+    draw_key_badge(surface, "←", c1.left + 218, c1.top + 36, min_w=26, h=24)
+    draw_key_badge(surface, "↓", c1.left + 248, c1.top + 36, min_w=26, h=24)
+    draw_key_badge(surface, "→", c1.left + 278, c1.top + 36, min_w=26, h=24)
+    text(surface, "หรือ คลิกเมาส์ค้างตามทิศทาง", FONT_S, (190, 210, 235), (c1.left + 316, c1.top + 39))
 
-    text(surface, "• W / ↑ : เร่งไอพ่นบินขึ้นสู่ผิวดิน (Thrust Up) และสะสมพลังงานศักย์ Ep สำหรับ Turbo",
-         FONT_XS, (220, 230, 245), (c1.left + 16, c1.top + 66))
-    text(surface, "• S / ↓ : เจาะลงใต้ดิน (Drill Down) มุ่งสู่ชั้นหินลึกและขุมทรัพย์",
-         FONT_XS, (220, 230, 245), (c1.left + 16, c1.top + 86))
-    text(surface, "• A / ← และ D / → : เคลื่อนที่ไปทางซ้าย และ ขวา",
-         FONT_XS, (220, 230, 245), (c1.left + 16, c1.top + 106))
-    text(surface, "* การขุด: รถจะเจาะทำลายดินและหินอัตโนมัติเมื่อเคลื่อนที่ชนบล็อก!",
-         FONT_XS, (255, 225, 120), (c1.left + 16, c1.top + 125))
+    # แถว 2: เทอร์โบ
+    draw_key_badge(surface, "Shift", c1.left + 16, c1.top + 68, min_w=54, h=24, active=True)
+    text(surface, "หรือ", FONT_S, (160, 175, 200), (c1.left + 78, c1.top + 71))
+    draw_key_badge(surface, "Space", c1.left + 108, c1.top + 68, min_w=62, h=24, active=True)
+    draw_icon_energy(surface, (c1.left + 180, c1.top + 70, 16, 16))
+    text(surface, "Turbo Boost: พุ่งไปข้างหน้าเร็ว 2.6x  |  พุ่งดิ่งทุบหินแรง 3.0x (Slam)",
+         FONT_S, (255, 215, 110), (c1.left + 204, c1.top + 71))
 
-    # ─── การ์ด 2: ระบบเทอร์โบ ───
-    c2 = pygame.Rect(panel.left + 16, c1.bottom + 8, panel.w - 32, 126)
-    _panel(surface, c2, bg=(32, 26, 22), border=(160, 110, 45), alpha=235, radius=12)
-    text(surface, "2. ระบบเทอร์โบ & พุ่งดิ่งเจาะแรง (Turbo Boost & Slam)", FONT_M, (255, 195, 60),
-         (c2.left + 16, c2.top + 9))
+    # คำอธิบายย่อย: สบายตา ไม่อึดอัด
+    text(surface, "• บิน & เจาะ: W / ↑ บินขึ้นผิวดิน  |  A / D เลี้ยวซ้าย-ขวา  |  S / ↓ เจาะลงใต้ดิน",
+         FONT_S, (220, 230, 245), (c1.left + 16, c1.top + 106))
+    text(surface, "• ขุดอัตโนมัติ: เพียงขับรถเคลื่อนที่ชนบล็อกดินหรือหิน รถจะขุดเจาะทันที!",
+         FONT_S, (255, 230, 140), (c1.left + 16, c1.top + 138))
 
-    draw_key_badge(surface, "Shift", c2.left + 16, c2.top + 34, min_w=58, h=24, active=True)
-    text(surface, "หรือ", FONT_XS, (160, 175, 200), (c2.left + 82, c2.top + 38))
-    draw_key_badge(surface, "Spacebar", c2.left + 112, c2.top + 34, min_w=78, h=24, active=True)
-    draw_icon_energy(surface, (c2.left + 200, c2.top + 36, 16, 16))
-    text(surface, "กดขณะเคลื่อนที่เพื่อระเบิดพลังเทอร์โบ!", FONT_XS, (255, 235, 140), (c2.left + 220, c2.top + 38))
+    # ─── การ์ด 2: วงจรเกมเพลย์ 3 ขั้นตอน ───
+    c2 = pygame.Rect(panel.left + 16, c1.bottom + 12, panel.w - 32, 184)
+    _panel(surface, c2, bg=(30, 28, 38), border=(75, 65, 95), alpha=235, radius=12)
+    text(surface, "2. วงจรการเล่นหลัก 3 ขั้นตอน (Core Game Loop)", FONT_M, (255, 195, 60),
+         (c2.left + 16, c2.top + 10))
 
-    text(surface, "• สะสมชาร์จ: บินขึ้นสู่ที่สูงจะสะสมพลังงานศักย์ Ep (หลอดชาร์จรอบตัวรถ)",
-         FONT_XS, (240, 225, 210), (c2.left + 16, c2.top + 66))
-    text(surface, "• พุ่งทะยานเร็วกว่าเดิม 2.6 เท่า (+160% Speed) ประหยัดเวลาข้ามอุโมงค์ยาว",
-         FONT_XS, (240, 225, 210), (c2.left + 16, c2.top + 86))
-    text(surface, "• พลังเจาะกระแทกพื้น (Ground Slam) แรงขึ้น 3.0 เท่า ทะลวงหินหนาได้ในพริบตา!",
-         FONT_XS, (255, 215, 110), (c2.left + 16, c2.top + 106))
+    col_w = 196
+    col_h = 132
+    col_y = c2.top + 38
+    cols_data = [
+        ("1. ขุดเจาะ & สะสม", (255, 215, 100), (32, 28, 22), (90, 75, 45),
+         ["• เจาะดินและหินลึก", "• เก็บ เหรียญ, ทอง, เพชร", "• สังเกตความจุถังแร่"]),
+        ("2. ระวังพลังงาน!", (255, 150, 70), (38, 26, 22), (125, 70, 45),
+         ["• พลังงานลดขณะขุด/บิน", "• บินกลับบ้านก่อนหมด!", "• เก็บถังน้ำมันช่วยเติม"]),
+        ("3. กลับฐานบ้าน", (110, 235, 180), (22, 34, 30), (45, 115, 95),
+         ["• ขับเข้าบ้าน (ผิวดินขวา)", "• ขายแร่ทั้งหมดเป็นเงิน", "• เติมพลังงานฟรี 100%!"]),
+    ]
 
-    # ─── การ์ด 3: ฐานบ้าน, ร้านค้า & อู่แต่งรถ ───
-    c3 = pygame.Rect(panel.left + 16, c2.bottom + 8, panel.w - 32, 126)
-    _panel(surface, c3, bg=(22, 34, 38), border=(45, 130, 120), alpha=235, radius=12)
-    text(surface, "3. ฐานบ้าน, ร้านค้าอัปเกรด & อู่แต่งรถ [ E ]", FONT_M, (100, 235, 200),
-         (c3.left + 16, c3.top + 9))
+    for i, (col_title, title_c, bg_c, border_c, bullet_list) in enumerate(cols_data):
+        col_x = c2.left + 14 + i * (col_w + 10)
+        box = pygame.Rect(col_x, col_y, col_w, col_h)
+        _panel(surface, box, bg=bg_c, border=border_c, alpha=230, radius=8)
+
+        # ไอคอนประจำกล่อง
+        if i == 0:
+            draw_icon_power(surface, (box.left + 10, box.top + 9, 16, 16), color=title_c)
+        elif i == 1:
+            draw_icon_energy(surface, (box.left + 10, box.top + 9, 16, 16), color=title_c)
+        else:
+            draw_icon_star(surface, (box.left + 18, box.top + 17), size=14, color=title_c)
+
+        text(surface, col_title, FONT_S, title_c, (box.left + 32, box.top + 9))
+        pygame.draw.line(surface, border_c, (box.left + 10, box.top + 30), (box.right - 10, box.top + 30), 1)
+
+        for bi, bullet in enumerate(bullet_list):
+            tc = (220, 230, 245) if bi < 2 else (175, 215, 235)
+            if i == 1 and bi == 1:
+                tc = (255, 195, 160)
+            elif i == 2 and bi == 2:
+                tc = (130, 255, 190)
+            text(surface, bullet, FONT_S, tc, (box.left + 10, box.top + 38 + bi * 28))
+
+        # ลูกศรเชื่อมระหว่างกล่อง
+        if i < 2:
+            text(surface, "→", FONT_M, (160, 175, 200), (box.right + 5, box.centery - 1), center=True)
+
+    # ─── การ์ด 3: ฐานบริการ & คีย์ลัด ───
+    c3 = pygame.Rect(panel.left + 16, c2.bottom + 12, panel.w - 32, 196)
+    _panel(surface, c3, bg=(22, 32, 38), border=(45, 105, 110), alpha=235, radius=12)
+    text(surface, "3. ฐานบริการ, การอัปเกรด & ปุ่มลัด (Base & Shortcuts)", FONT_M, (100, 235, 200),
+         (c3.left + 16, c3.top + 10))
 
     draw_key_badge(surface, "E", c3.left + 16, c3.top + 34, min_w=28, h=24, active=True)
-    text(surface, "เปิดร้านค้า & อู่แต่งรถเมื่อจอดหน้าร้านบนผิวดิน หรือปลดล็อคประตูกั้นชั้นใต้ดิน",
-         FONT_XS, (200, 235, 225), (c3.left + 52, c3.top + 38))
+    text(surface, "เปิดร้านค้า & อู่แต่งรถ (หน้าร้านผิวดินซ้าย) หรือกดปลดล็อคประตูกั้นชั้นใต้ดิน",
+         FONT_S, (215, 240, 235), (c3.left + 52, c3.top + 37))
 
-    text(surface, "• ฐานบ้าน (ฝั่งขวาบนผิวดิน): ขับรถกลับเข้าบ้านเพื่อขายแร่ในถังทั้งหมดและเติมพลังงานฟรี 100%",
-         FONT_XS, (215, 240, 235), (c3.left + 16, c3.top + 66))
-    text(surface, "• ร้านค้า & อู่แต่งรถ (ฝั่งซ้ายบนผิวดิน): จอดหน้าร้านแล้วกด [E] เพื่ออัปเกรดรถหรือเข้าอู่แต่งรถ",
-         FONT_XS, (215, 240, 235), (c3.left + 16, c3.top + 86))
-    text(surface, "• การปลดล็อคของแต่งรถ: ทำเงื่อนไขความก้าวหน้าให้สำเร็จแล้วนำเหรียญมาซื้อปลดล็อคในอู่แต่งรถ!",
-         FONT_XS, (255, 225, 120), (c3.left + 16, c3.top + 106))
+    text(surface, "• ร้านค้า & อู่: อัปเกรดพลังขุด, ความจุถัง, พลังงาน และแต่งสี/ซื้อหัวขุดพิเศษ",
+         FONT_S, (220, 230, 245), (c3.left + 16, c3.top + 68))
+    text(surface, "• เป้าหมาย: ทำสัญญาภารกิจให้ครบ (โหมดภารกิจ) หรือขุดสะสมเงินปลดล็อคทุกชั้น (โหมดคลาสสิก)",
+         FONT_S, (255, 230, 140), (c3.left + 16, c3.top + 98))
 
-    # ─── การ์ด 4: เคล็ดลับการเอาชีวิตรอด ───
-    c4 = pygame.Rect(panel.left + 16, c3.bottom + 8, panel.w - 32, 150)
-    _panel(surface, c4, bg=(26, 26, 38), border=(60, 70, 95), alpha=235, radius=12)
-    text(surface, "4. เคล็ดลับการเอาชีวิตรอด & เป้าหมาย (Survival Tips)", FONT_M, (240, 240, 255),
-         (c4.left + 16, c4.top + 9))
-
-    draw_icon_energy(surface, (c4.left + 16, c4.top + 36, 15, 15))
-    text(surface, "ระวังพลังงานหมด! คำนวณพลังงานเผื่อขากลับขึ้นสู่ฐานบ้านเสมอ (เก็บถังน้ำมันใต้ดินช่วยเพิ่มพลังงานได้)",
-         FONT_XS, (255, 185, 120), (c4.left + 36, c4.top + 36))
-    draw_icon_cargo(surface, (c4.left + 16, c4.top + 58, 15, 15))
-    text(surface, "ถังเก็บแร่ (Cargo): เมื่อถังเต็ม ต้องขับกลับฐานบ้านบนพื้นผิวเพื่อนำแร่ไปขายและเติมพลังงาน",
-         FONT_XS, (220, 230, 245), (c4.left + 36, c4.top + 58))
-    draw_icon_power(surface, (c4.left + 16, c4.top + 80, 15, 15))
-    text(surface, "อัปเกรดหัวขุด: หินแกรนิตแข็งต้องใช้หัวขุด Lv.2 ขึ้นไป (หรือปลดล็อคหัวเจาะเพชรไทเทเนียมในอู่แต่งรถ)",
-         FONT_XS, (220, 230, 245), (c4.left + 36, c4.top + 80))
-    draw_icon_wrench(surface, (c4.left + 16, c4.top + 102, 15, 15))
-    text(surface, "คีย์ลัดอื่นๆ: [ESC] พักเกม  |  [H] หรือ [F1] เปิดคู่มือนี้  |  [M] เปิด/ปิดเสียง  |  [F11] เต็มหน้าจอ",
-         FONT_XS, (185, 205, 235), (c4.left + 36, c4.top + 102))
-    draw_icon_star(surface, (c4.left + 23, c4.top + 131), 14)
-    text(surface, "เป้าหมาย: พิชิตสัญญาภารกิจ หรือปลดล็อคชั้นความลึกไม่รู้จบในโหมดคลาสสิก!",
-         FONT_XS, (255, 225, 110), (c4.left + 36, c4.top + 124))
+    # แถบปุ่มลัด
+    bar_rect = pygame.Rect(c3.left + 12, c3.top + 134, c3.w - 24, 46)
+    _panel(surface, bar_rect, bg=(16, 22, 30), border=(50, 75, 95), alpha=240, radius=8)
+    text(surface, "[ESC] เมนูพัก  |  [H / F1] ดูวิธีเล่น  |  [M] ปิด-เปิดเสียง  |  [F11] สลับเต็มจอ",
+         FONT_S, (185, 210, 245), (bar_rect.centerx, bar_rect.centery), center=True)
 
     # ปุ่มปิด
-    close_rect = pygame.Rect(cx - 130, c4.bottom + 12, 260, 42)
+    close_rect = pygame.Rect(cx - 130, c3.bottom + 14, 260, 42)
     button(surface, close_rect, "เข้าใจแล้ว  (ปิด E / ESC)", FONT_M, base=(40, 130, 75),
            hover=close_rect.collidepoint(mouse_pos))
     buttons["close"] = close_rect
